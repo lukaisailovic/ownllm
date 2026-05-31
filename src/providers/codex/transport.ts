@@ -1,11 +1,6 @@
 import { arch } from 'node:os'
-import { createCookieJarClient, pickRateLimitHeaders } from '../../http/upstream-client'
-import {
-  codexCloudflareBlocked,
-  credentialExpired,
-  rateLimited,
-  upstreamError,
-} from '../../translate/errors'
+import { classifyUpstreamStatus, createCookieJarClient } from '../../http/upstream-client'
+import { codexCloudflareBlocked } from '../../translate/errors'
 import type { Transport } from '../types'
 
 // Codex inference transport (PLAN §9a). The header set is what gets a valid token past Cloudflare:
@@ -43,9 +38,7 @@ export const codexTransport: Transport = {
 
   classifyError(status, headers, body) {
     if (status === 403 && isCloudflareBlock(headers, body)) return codexCloudflareBlocked()
-    if (status === 401) return credentialExpired()
-    if (status === 429) return rateLimited(pickRateLimitHeaders(headers))
-    return upstreamError(`Codex upstream returned ${status}`)
+    return classifyUpstreamStatus(status, headers, 'Codex')
   },
 }
 

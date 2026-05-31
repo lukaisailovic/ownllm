@@ -80,5 +80,7 @@ models:
 ```
 
 The `providers` block is an open record keyed by id (not a closed enum), so a new id needs no schema
-change. Worked example: [`src/providers/codex`](../src/providers/codex) (module + transport +
-static catalog) reusing the Responses translator.
+change. Two worked examples both reuse the shared Responses translator and differ only in auth +
+transport: [`src/providers/codex`](../src/providers/codex) (device-code auth, Cloudflare-aware
+transport, cookie jar) and [`src/providers/xai`](../src/providers/xai) (loopback auth,
+`x-grok-conv-id`, a `sanitize.ts` of provider quirks, live model discovery, `403 → xai_tier_denied`).

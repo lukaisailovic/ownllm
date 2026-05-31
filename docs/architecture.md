@@ -13,7 +13,7 @@ src/
   config/       zod schema, ${ENV} loader, XDG-ish paths, loopback check
   server/       Hono app, middleware (requestId, clientAuth), routes, readiness
   router/       resolveModel(name) -> { providerId, upstreamModel, reasoningEffort }
-  providers/    types (the extension contract), registry, codex/
+  providers/    types (the extension contract), registry, codex/, xai/
   translate/    CC types + error factory + param policy; responses/ translator
   auth/         Credential, AuthStore (0600 + lock), single-flight RefreshManager
   http/         host-pinned UpstreamClient, Codex cookie jar, SSE parser

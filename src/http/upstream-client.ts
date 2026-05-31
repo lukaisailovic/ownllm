@@ -1,4 +1,9 @@
-import { upstreamError } from '../translate/errors'
+import {
+  type LlmgateError,
+  credentialExpired,
+  rateLimited,
+  upstreamError,
+} from '../translate/errors'
 import { CookieJar } from './cookie-jar'
 
 export interface UpstreamRequestInit {
@@ -34,6 +39,18 @@ export function createUpstreamClient(hosts: string[]): UpstreamClient {
 
 // Codex variant with a per-client cookie jar that captures Set-Cookie via getSetCookie() and
 // replays it as a Cookie header on subsequent requests.
+// Maps the upstream statuses every provider handles the same way. A provider's transport handles
+// its own special case (Codex Cloudflare 403, xAI tier 403) before delegating here.
+export function classifyUpstreamStatus(
+  status: number,
+  headers: Headers,
+  providerLabel: string,
+): LlmgateError {
+  if (status === 401) return credentialExpired()
+  if (status === 429) return rateLimited(pickRateLimitHeaders(headers))
+  return upstreamError(`${providerLabel} upstream returned ${status}`)
+}
+
 // Rate-limit-related response headers to echo back to the client on a 429 (PLAN §11).
 export function pickRateLimitHeaders(headers: Headers): Record<string, string> {
   const picked: Record<string, string> = {}

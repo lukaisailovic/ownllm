@@ -13,3 +13,14 @@ export function getNumber(value: unknown, key: string): number | undefined {
   const field = asRecord(value)?.[key]
   return typeof field === 'number' ? field : undefined
 }
+
+export function omit(
+  record: Record<string, unknown>,
+  keys: readonly string[],
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (!keys.includes(key)) result[key] = value
+  }
+  return result
+}
