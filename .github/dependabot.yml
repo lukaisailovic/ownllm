@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Keep the SHA-pinned actions current; one grouped PR a week.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        patterns: ['*']
