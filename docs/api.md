@@ -1,12 +1,12 @@
 # HTTP API
 
-llmgate speaks the OpenAI API. Point any OpenAI-compatible client at `http://<host>:<port>/v1` and
+ownllm speaks the OpenAI API. Point any OpenAI-compatible client at `http://<host>:<port>/v1` and
 use your `server.api_key` as the API key. On loopback no key is required, but most SDKs insist on a
 non-empty string anyway, so pass any placeholder.
 
 ```bash
 curl http://127.0.0.1:8787/v1/chat/completions \
-  -H "authorization: Bearer $LLMGATE_API_KEY" \
+  -H "authorization: Bearer $OWNLLM_API_KEY" \
   -H "content-type: application/json" \
   -d '{"model":"grok","messages":[{"role":"user","content":"hello"}]}'
 ```
@@ -45,7 +45,7 @@ usage chunk arrives just before `[DONE]`. Token counts pass straight through fro
 
 ### Which parameters are honored
 
-By default, llmgate forwards what the upstreams understand and quietly drops the rest:
+By default, ownllm forwards what the upstreams understand and quietly drops the rest:
 
 - Honored: `temperature`, `top_p`, `max_tokens` / `max_completion_tokens`, `response_format`,
   `reasoning_effort`, `tools`, `tool_choice`, `stream`, `stream_options.include_usage`.
@@ -83,7 +83,7 @@ Errors use the OpenAI envelope, `{"error": {"message", "type", "param"?, "code"?
 | Upstream rate limit | 429 | `rate_limit_exceeded` |
 | Upstream 5xx, or a translation fault | 502 | (none) |
 
-A `model_not_found` reply mirrors OpenAI's wording and doesn't list your models — run `llmgate
-models` for that. On a 429, llmgate passes the upstream's `Retry-After` straight through and never
+A `model_not_found` reply mirrors OpenAI's wording and doesn't list your models — run `ownllm
+models` for that. On a 429, ownllm passes the upstream's `Retry-After` straight through and never
 retries for you. For what these mean when you're logging in, see
 [Authentication](./auth.md#troubleshooting).

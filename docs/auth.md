@@ -1,7 +1,7 @@
 # Authentication
 
-llmgate reaches each provider through your subscription login instead of an API key. You log in once
-per provider, llmgate stores the OAuth tokens under `~/.llmgate/`, and from then on it refreshes them
+ownllm reaches each provider through your subscription login instead of an API key. You log in once
+per provider, ownllm stores the OAuth tokens under `~/.ownllm/`, and from then on it refreshes them
 for you.
 
 Two providers are supported:
@@ -14,15 +14,15 @@ Two providers are supported:
 ## Logging in
 
 ```bash
-llmgate auth login openai-codex
-llmgate auth login xai
+ownllm auth login openai-codex
+ownllm auth login xai
 ```
 
 The two flows differ a little, because the providers do.
 
 ### ChatGPT / Codex
 
-`llmgate auth login openai-codex` prints a URL and a short code:
+`ownllm auth login openai-codex` prints a URL and a short code:
 
 ```
 To authorize Codex, open this URL on any device:
@@ -32,21 +32,21 @@ and enter the code: ABCD-EFGH
 
 Open the URL, sign in to ChatGPT, type the code. The terminal finishes on its own once you approve.
 Because you enter the code by hand, the device with the browser doesn't have to be the one running
-llmgate: your phone works, and so does a laptop on the near end of an SSH session. This flow behaves
+ownllm: your phone works, and so does a laptop on the near end of an SSH session. This flow behaves
 the same on a headless server as on your desktop.
 
 ### xAI Grok
 
-If the machine has a browser, `llmgate auth login xai` opens it and catches the result for you.
-Approve the request and you're done.
+If the machine has a browser, `ownllm auth login xai` prints a URL to open and catches the redirect
+for you. Approve the request and you're done.
 
 If it doesn't (think containers, SSH sessions, cloud shells), there's no browser to open and nothing
-local for xAI's redirect to reach. llmgate notices and switches to a paste flow instead: it prints a
+local for xAI's redirect to reach. ownllm notices and switches to a paste flow instead: it prints a
 URL, you open it on whatever machine does have a browser, and you paste the result back. You can
 force that mode anywhere with `--manual`:
 
 ```bash
-llmgate auth login xai --manual
+ownllm auth login xai --manual
 ```
 
 The paste flow is three steps:
@@ -64,20 +64,20 @@ logging in again won't change that. See [troubleshooting](#troubleshooting).
 ## Checking what's stored
 
 ```bash
-llmgate auth status
+ownllm auth status
 ```
 
 prints each stored credential: the account it belongs to, the last four characters of the token,
 when it expires, and whether it's still valid. Full tokens are never printed.
 
-`llmgate doctor` goes a step further and actually probes each provider to see whether it's reachable
+`ownllm doctor` goes a step further and actually probes each provider to see whether it's reachable
 from where you're running. That's the quickest way to tell an entitlement problem apart from a plain
 network one.
 
 ## Logging out
 
 ```bash
-llmgate auth logout xai
+ownllm auth logout xai
 ```
 
 removes that one provider's credential and leaves the others alone.
@@ -87,25 +87,25 @@ removes that one provider's credential and leaves the others alone.
 Already using the official Codex CLI? You can import its tokens instead of logging in again:
 
 ```bash
-llmgate auth import openai-codex
+ownllm auth import openai-codex
 ```
 
 This reads whatever the Codex CLI saved under `~/.codex` (or `$CODEX_HOME`). Be careful with it: the
 two tools then share one refresh token, and the first to refresh invalidates the other's session, so
-you can get logged out of both at once. A plain `llmgate auth login openai-codex` keeps the sessions
+you can get logged out of both at once. A plain `ownllm auth login openai-codex` keeps the sessions
 separate and is the safer default.
 
 ## Where credentials live
 
-Tokens go in `~/.llmgate/auth.json`, owner-readable only (`0600`), kept apart from your config. Set
-`LLMGATE_HOME` to move that directory. To hand another machine a login (a container, say), copy that
+Tokens go in `~/.ownllm/auth.json`, owner-readable only (`0600`), kept apart from your config. Set
+`OWNLLM_HOME` to move that directory. To hand another machine a login (a container, say), copy that
 file across or mount the directory in — no second login needed.
 
 ## Troubleshooting
 
 | You see | What it means | What to do |
 |---|---|---|
-| `credential_expired` (401) | The token expired and couldn't be refreshed. | Run `llmgate auth login <provider>` again. |
+| `credential_expired` (401) | The token expired and couldn't be refreshed. | Run `ownllm auth login <provider>` again. |
 | `xai_tier_denied` (403) | Your xAI account isn't allowlisted for API access. | A tier gate on xAI's end; re-logging in won't help. Check your plan at x.ai. |
 | `codex_cloudflare_blocked` (502) | Cloudflare challenged the request, which is common on datacenter and Docker IPs. | Try from a residential or home-server IP. It's a network block, not a bad token. |
 | xAI login sits on "waiting for callback" | The browser can't reach the loopback listener on this machine. | Press Ctrl-C and re-run with `--manual`. |

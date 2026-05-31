@@ -23,15 +23,19 @@ COPY package.json ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile --offline
 
 FROM node:22-slim AS runtime
+LABEL org.opencontainers.image.title="ownllm" \
+      org.opencontainers.image.description="Self-hostable, subscription-auth, OpenAI-compatible API gateway with real per-request model routing." \
+      org.opencontainers.image.source="https://github.com/lukaisailovic/ownllm" \
+      org.opencontainers.image.licenses="Apache-2.0"
 ENV NODE_ENV=production
-ENV LLMGATE_HOME=/home/llmgate/.llmgate
+ENV OWNLLM_HOME=/home/ownllm/.ownllm
 WORKDIR /app
-RUN useradd --system --uid 10001 --create-home llmgate
+RUN useradd --system --uid 10001 --create-home ownllm
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json config.example.yaml ./
-USER llmgate
-VOLUME ["/home/llmgate/.llmgate"]
+USER ownllm
+VOLUME ["/home/ownllm/.ownllm"]
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"

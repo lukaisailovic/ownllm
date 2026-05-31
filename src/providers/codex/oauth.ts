@@ -1,4 +1,3 @@
-import open from 'open'
 import { Credential } from '../../auth/credential'
 import { AuthError } from '../../auth/errors'
 import { decodeJwtClaims, jwtExpirySeconds } from '../../auth/jwt'
@@ -10,7 +9,6 @@ import {
   readJsonBody,
 } from '../../auth/oauth-http'
 import { delay } from '../../util/async'
-import { canOpenBrowser } from '../../util/environment'
 import { asRecord, getNumber, getString } from '../../util/json'
 import type { AuthProvider, LoginContext } from '../types'
 
@@ -27,7 +25,6 @@ const CODEX = {
 } as const
 
 const POLL_TIMEOUT_MS = 15 * 60 * 1000
-const SLOW_DOWN_STEP_MS = 5_000
 const ACCOUNT_ID_CLAIM = 'https://api.openai.com/auth'
 
 interface DeviceAuth {
@@ -53,7 +50,6 @@ class CodexAuthProvider implements AuthProvider {
     ctx.report(
       `To authorize Codex, open this URL on any device:\n  ${CODEX.devicePageUrl}\nand enter the code: ${device.userCode}`,
     )
-    if (canOpenBrowser()) await open(CODEX.devicePageUrl).catch(() => {})
     const grant = await this.pollForGrant(device, ctx)
     const tokens = await this.exchange(grant, ctx.signal)
     return codexCredentialFromTokens(tokens)
@@ -83,11 +79,10 @@ class CodexAuthProvider implements AuthProvider {
   }
 
   private async pollForGrant(device: DeviceAuth, ctx: LoginContext): Promise<Grant> {
-    let intervalMs = device.intervalMs
     const deadline = Date.now() + POLL_TIMEOUT_MS
     for (;;) {
       if (ctx.signal?.aborted) throw new AuthError('login_cancelled', 'login cancelled')
-      await delay(intervalMs, ctx.signal)
+      await delay(device.intervalMs, ctx.signal)
       if (Date.now() > deadline)
         throw new AuthError('login_timeout', 'device authorization timed out')
 
@@ -97,23 +92,19 @@ class CodexAuthProvider implements AuthProvider {
         { signal: ctx.signal },
       )
       const body = await readJsonBody(res)
-      const authorizationCode = getString(body, 'authorization_code')
-      const codeVerifier = getString(body, 'code_verifier')
-      if (res.ok && authorizationCode && codeVerifier) return { authorizationCode, codeVerifier }
-
-      const error = getString(body, 'error')
-      if (error === 'authorization_pending') continue
-      if (error === 'slow_down') {
-        intervalMs += SLOW_DOWN_STEP_MS
-        continue
+      if (res.ok) {
+        const authorizationCode = getString(body, 'authorization_code')
+        const codeVerifier = getString(body, 'code_verifier')
+        if (authorizationCode && codeVerifier) return { authorizationCode, codeVerifier }
+        throw new AuthError('login_failed', 'device authorization missing authorization_code')
       }
-      if (error === 'expired_token') {
-        throw new AuthError('login_timeout', 'device code expired; run login again')
-      }
-      if (error === 'access_denied') throw new AuthError('login_failed', 'authorization was denied')
+      // OpenAI reports "still pending" as a 403 (sometimes 404), not RFC-8628's 400 +
+      // authorization_pending — so keep polling on those; the deadline above bounds the wait.
+      if (res.status === 403 || res.status === 404) continue
+      const message = getString(asRecord(body)?.error, 'message')
       throw new AuthError(
         'login_failed',
-        `device authorization failed (${res.status}${error ? `, ${error}` : ''})`,
+        `device authorization failed (${res.status}${message ? `, ${message}` : ''})`,
       )
     }
   }

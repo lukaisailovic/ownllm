@@ -3,7 +3,7 @@ import type { Credential } from '../auth/credential'
 import type { Config } from '../config/schema'
 import { logger } from '../logger'
 import type { ProviderModule } from '../providers/types'
-import { LlmgateError, internalError } from '../translate/errors'
+import { OwnllmError, internalError } from '../translate/errors'
 import { clientAuth } from './middleware/clientAuth'
 import { requestLogger } from './middleware/logger'
 import { requestId } from './middleware/requestId'
@@ -28,7 +28,7 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
 
   app.onError((err, c) => {
     const id = c.get('requestId')
-    if (err instanceof LlmgateError) {
+    if (err instanceof OwnllmError) {
       logger[err.status >= 500 ? 'error' : 'warn'](
         { requestId: id, status: err.status, type: err.type, code: err.code },
         'request error',

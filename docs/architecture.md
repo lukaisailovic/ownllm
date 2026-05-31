@@ -1,6 +1,6 @@
 # Architecture
 
-llmgate is a small, provider-agnostic core wrapped around pluggable provider modules. The core
+ownllm is a small, provider-agnostic core wrapped around pluggable provider modules. The core
 never names a provider: it routes by the requested `model` through a config table to a provider id,
 looks that id up in a registry, and drives the provider through three interfaces — `AuthProvider`,
 `Translator`, and `Transport`.
@@ -45,19 +45,19 @@ the shared Responses translator with a Codex-specific transport.
     ending in exactly one `[DONE]`; otherwise aggregate the stream via `fromUpstream` into one
     `chat.completion`.
 
-Any thrown `LlmgateError` is rendered by the app's `onError` into the OpenAI error envelope with the
+Any thrown `OwnllmError` is rendered by the app's `onError` into the OpenAI error envelope with the
 request id (`translate/errors.ts`).
 
 ## Why "always stream upstream"
 
-Codex requires `stream:true`. So llmgate always streams from the upstream and decides at the edge
+Codex requires `stream:true`. So ownllm always streams from the upstream and decides at the edge
 whether to relay chunks to the client or buffer them into a single response. This is why the
 `Translator.fromUpstream` consumes the event stream and aggregates, rather than taking a
 pre-assembled body.
 
 ## Statelessness
 
-There is no conversation store. The client resends history each turn. llmgate derives a
+There is no conversation store. The client resends history each turn. ownllm derives a
 *deterministic* conversation id by hashing the prompt prefix (everything except the latest user
 turn), so the upstream prompt cache hits across turns instead of missing on a random id. See
 [translation](./translation.md#conversation-id).
@@ -82,5 +82,5 @@ turn), so the upstream prompt cache hits across turns instead of missing on a ra
   key refuses to start (fail-closed).
 - The upstream client is **host-pinned**: bearer tokens and cookies only go to allowlisted hosts,
   and redirects are never auto-followed.
-- Credentials live at `~/.llmgate/auth.json` (mode `0600`) and never appear in logs; see
+- Credentials live at `~/.ownllm/auth.json` (mode `0600`) and never appear in logs; see
   [auth](./auth.md).

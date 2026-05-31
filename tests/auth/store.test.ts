@@ -19,7 +19,7 @@ let dir: string
 let store: AuthStore
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'llmgate-store-'))
+  dir = await mkdtemp(join(tmpdir(), 'ownllm-store-'))
   store = new AuthStore(join(dir, 'auth.json'), join(dir, 'auth.json.lock'))
 })
 

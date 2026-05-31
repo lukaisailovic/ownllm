@@ -1,15 +1,37 @@
 {
-  "name": "llmgate",
+  "name": "ownllm",
   "version": "0.1.0",
   "description": "Self-hostable, subscription-auth, OpenAI-compatible API gateway with real per-request model routing.",
+  "keywords": [
+    "openai",
+    "api-gateway",
+    "llm",
+    "proxy",
+    "oauth",
+    "subscription",
+    "model-routing",
+    "self-hosted",
+    "codex",
+    "grok"
+  ],
+  "homepage": "https://github.com/lukaisailovic/ownllm#readme",
+  "bugs": "https://github.com/lukaisailovic/ownllm/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lukaisailovic/ownllm.git"
+  },
   "type": "module",
   "license": "Apache-2.0",
+  "author": "Luka Isailovic",
   "engines": {
     "node": ">=22"
   },
   "packageManager": "pnpm@10.6.5",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
-    "llmgate": "./dist/main.js"
+    "ownllm": "./dist/main.js"
   },
   "files": ["dist", "config.example.yaml", "README.md", "LICENSE"],
   "scripts": {
@@ -28,7 +50,6 @@
     "citty": "^0.1.6",
     "eventsource-parser": "^3.0.0",
     "hono": "^4.6.0",
-    "open": "^10.1.0",
     "pino": "^9.5.0",
     "tough-cookie": "^5.0.0",
     "yaml": "^2.6.0",

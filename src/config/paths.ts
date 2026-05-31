@@ -9,7 +9,7 @@ export interface Paths {
 }
 
 export function resolvePaths(): Paths {
-  const configDir = process.env.LLMGATE_HOME ?? join(homedir(), '.llmgate')
+  const configDir = process.env.OWNLLM_HOME ?? join(homedir(), '.ownllm')
   return {
     configDir,
     configFile: join(configDir, 'config.yaml'),

@@ -28,7 +28,8 @@ const loginCommand = defineCommand({
     ...PROVIDER_ARG,
     manual: {
       type: 'boolean',
-      description: 'Skip the browser/loopback and paste the code by hand (headless, Docker, SSH)',
+      description:
+        'Paste the code by hand instead of using the loopback listener (headless, Docker, SSH)',
     },
   },
   async run({ args }) {
@@ -60,7 +61,7 @@ const statusCommand = defineCommand({
     const store = openAuthStore()
     const ids = await store.listProviders()
     if (ids.length === 0) {
-      process.stdout.write('no stored credentials (run: llmgate auth login <provider>)\n')
+      process.stdout.write('no stored credentials (run: ownllm auth login <provider>)\n')
       return
     }
     for (const id of ids) {
@@ -90,7 +91,7 @@ const importCommand = defineCommand({
     }
     process.stderr.write(
       'warning: this shares the refresh token with the official Codex CLI. Using both rotates the\n' +
-        'shared token and can revoke BOTH credentials. Prefer `llmgate auth login openai-codex`.\n',
+        'shared token and can revoke BOTH credentials. Prefer `ownllm auth login openai-codex`.\n',
     )
     await openAuthStore().setCredential('openai-codex', readCodexCredentialOrExit())
     process.stdout.write('imported openai-codex credential\n')

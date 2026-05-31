@@ -108,7 +108,7 @@ function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
 function respondHtml(res: ServerResponse, status: number, message: string): void {
   const body = `<body style="font-family:system-ui;padding:2rem"><p>${message}</p></body>`
   res.writeHead(status, { 'content-type': 'text/html; charset=utf-8' })
-  res.end(`<!doctype html><meta charset="utf-8"><title>llmgate</title>${body}`)
+  res.end(`<!doctype html><meta charset="utf-8"><title>ownllm</title>${body}`)
 }
 
 function abortOn(signal: AbortSignal): Promise<never> {

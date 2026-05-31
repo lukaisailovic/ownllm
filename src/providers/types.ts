@@ -1,6 +1,6 @@
 import type { Credential } from '../auth/credential'
 import type { UpstreamClient } from '../http/upstream-client'
-import type { LlmgateError } from '../translate/errors'
+import type { OwnllmError } from '../translate/errors'
 import type { TranslateContext, Translator } from '../translate/types'
 
 export interface LoginContext {
@@ -13,7 +13,7 @@ export interface LoginContext {
 }
 
 // An AuthProvider owns one provider's OAuth lifecycle: interactive login, token refresh, and the
-// expiry policy (provider-specific clock skew). The rest of llmgate treats credentials opaquely.
+// expiry policy (provider-specific clock skew). The rest of ownllm treats credentials opaquely.
 export interface AuthProvider {
   readonly id: string
   login(ctx: LoginContext): Promise<Credential>
@@ -40,7 +40,7 @@ export interface Transport {
   headers(credential: Credential, ctx: TranslateContext): Record<string, string>
   sanitizeBody?(body: unknown, ctx: TranslateContext): unknown
   client(): UpstreamClient
-  classifyError(status: number, headers: Headers, body: string): LlmgateError
+  classifyError(status: number, headers: Headers, body: string): OwnllmError
 }
 
 // A provider is one self-contained module: auth + translator + transport + capabilities + catalog.

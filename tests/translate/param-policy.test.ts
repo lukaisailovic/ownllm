@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { LlmgateError } from '../../src/translate/errors'
+import type { OwnllmError } from '../../src/translate/errors'
 import { enforceParamPolicy } from '../../src/translate/param-policy'
 import type { ChatCompletionRequest } from '../../src/translate/types'
 
@@ -7,11 +7,11 @@ function request(overrides: Partial<ChatCompletionRequest> = {}): ChatCompletion
   return { model: 'm', messages: [{ role: 'user', content: 'hi' }], ...overrides }
 }
 
-function thrown(fn: () => void): LlmgateError | undefined {
+function thrown(fn: () => void): OwnllmError | undefined {
   try {
     fn()
   } catch (error) {
-    return error as LlmgateError
+    return error as OwnllmError
   }
   return undefined
 }

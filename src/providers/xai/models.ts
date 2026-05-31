@@ -4,7 +4,7 @@ import type { ModelInfo } from '../types'
 
 const MODELS_URL = 'https://api.x.ai/v1/models'
 
-// Grok Build model names churn (week-old beta); these are the seen defaults. `llmgate models
+// Grok Build model names churn (week-old beta); these are the seen defaults. `ownllm models
 // --remote` discovers live values. (PLAN §9b / §3E.)
 export const XAI_MODELS: ModelInfo[] = [
   { id: 'grok-build' },

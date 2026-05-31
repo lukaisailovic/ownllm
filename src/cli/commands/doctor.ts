@@ -24,7 +24,7 @@ export const doctorCommand = defineCommand({
       const provider = getProvider(id)
       const credential = await store.getCredential(id)
       if (!provider || !credential) {
-        process.stdout.write(`  credential: missing — run 'llmgate auth login ${id}'\n`)
+        process.stdout.write(`  credential: missing — run 'ownllm auth login ${id}'\n`)
         continue
       }
 

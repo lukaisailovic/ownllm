@@ -52,7 +52,7 @@ interface Transport {
   headers(cred: Credential, ctx): Record<string, string>
   sanitizeBody?(body: unknown, ctx): unknown       // provider quirks ONLY
   client(): UpstreamClient                         // plain | cookie-jar | (future) TLS-impersonation
-  classifyError(status, headers, body): LlmgateError
+  classifyError(status, headers, body): OwnllmError
 }
 ```
 

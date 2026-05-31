@@ -1,6 +1,6 @@
-# llmgate documentation
+# ownllm documentation
 
-llmgate is an OpenAI-compatible API server that runs on your LLM subscriptions (ChatGPT/Codex, xAI
+ownllm is an OpenAI-compatible API server that runs on your LLM subscriptions (ChatGPT/Codex, xAI
 Grok) over OAuth instead of API keys, routing each request to a backend by the model name you ask
 for.
 

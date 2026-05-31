@@ -1,11 +1,11 @@
-# llmgate configuration
+# ownllm configuration
 # Values support ${ENV_VAR} interpolation, resolved at load time.
 # An unresolved ${VAR} (env not set) is a hard error.
 
 server:
   host: 127.0.0.1            # non-loopback host requires api_key, or the server refuses to start
   port: 8787
-  # api_key: ${LLMGATE_API_KEY}  # client auth (timing-safe); REQUIRED when host is not loopback
+  # api_key: ${OWNLLM_API_KEY}  # client auth (timing-safe); REQUIRED when host is not loopback
   request_timeout_ms: 600000  # upstream abort deadline
   strict_params: false        # true => unsupported params return 400 instead of being ignored
 
@@ -26,7 +26,7 @@ models:
     upstream: gpt-5
   grok:
     provider: xai
-    upstream: grok-build      # Grok Build model names churn; verify with 'llmgate models --remote'
+    upstream: grok-build      # Grok Build model names churn; verify with 'ownllm models --remote'
     reasoning_effort: medium
   grok-4:
     provider: xai

@@ -43,7 +43,7 @@ export const serveCommand = defineCommand({
       refreshAfterUnauthorized: (providerId) => refreshManager.refreshAfterUnauthorized(providerId),
     })
     const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {
-      logger.info({ host: info.address, port: info.port }, 'llmgate listening')
+      logger.info({ host: info.address, port: info.port }, 'ownllm listening')
     })
 
     // Stop accepting, drain in-flight streams, then exit — or force-exit after the grace period.

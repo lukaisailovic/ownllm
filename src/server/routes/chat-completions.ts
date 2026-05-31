@@ -6,7 +6,7 @@ import { parseSSE } from '../../http/sse'
 import { logger } from '../../logger'
 import { resolveModel } from '../../router/resolve'
 import {
-  LlmgateError,
+  OwnllmError,
   credentialExpired,
   invalidRequestBody,
   modelNotFound,
@@ -86,7 +86,7 @@ async function handleChatCompletion(c: Context<AppEnv>, deps: AppDeps): Promise<
     }
   } catch (error) {
     clearTimeout(timeout)
-    if (error instanceof LlmgateError) throw error
+    if (error instanceof OwnllmError) throw error
     throw upstreamError(`upstream request failed: ${errorMessage(error)}`)
   }
 
@@ -133,7 +133,7 @@ async function withMappedAuthErrors(load: () => Promise<Credential>): Promise<Cr
   }
 }
 
-function mapAuthError(error: AuthError): LlmgateError {
+function mapAuthError(error: AuthError): OwnllmError {
   if (error.code === 'tier_denied') return xaiTierDenied()
   if (error.code === 'rate_limited') return rateLimited()
   return credentialExpired()

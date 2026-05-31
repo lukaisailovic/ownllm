@@ -26,7 +26,7 @@ export class RefreshManager {
     if (!current) {
       throw new AuthError(
         'credential_missing',
-        `no credential for '${providerId}' (run: llmgate auth login ${providerId})`,
+        `no credential for '${providerId}' (run: ownllm auth login ${providerId})`,
       )
     }
     if (!provider.isExpired(current)) return current

@@ -1,4 +1,3 @@
-import open from 'open'
 import { Credential } from '../../auth/credential'
 import { AuthError, classifyTokenError } from '../../auth/errors'
 import { decodeJwtClaims, jwtExpirySeconds } from '../../auth/jwt'
@@ -110,9 +109,8 @@ async function authorizeByLoopback(
   const server = await startLoopbackServer(XAI.loopbackPort, XAI.callbackPath)
   try {
     ctx.report(
-      `Opening the browser to authorize Grok. If it does not open, visit:\n  ${authorizeUrl}\nIf your browser cannot reach this machine (remote/Docker), press Ctrl-C and re-run with --manual.`,
+      `To authorize Grok, open this URL in your browser:\n  ${authorizeUrl}\nThis machine is waiting for the redirect. If your browser cannot reach it (remote/Docker), press Ctrl-C and re-run with --manual.`,
     )
-    await open(authorizeUrl).catch(() => {})
 
     const result = await server.waitForCallback(ctx.signal)
     if (result.state !== state)
@@ -209,7 +207,7 @@ function buildAuthorizeUrl(
     state: ids.state,
     nonce: ids.nonce,
     plan: 'generic',
-    referrer: 'llmgate',
+    referrer: 'ownllm',
   }).toString()
   return url.toString()
 }

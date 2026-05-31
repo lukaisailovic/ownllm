@@ -9,7 +9,7 @@ const CODEX_HOST = 'chatgpt.com'
 const ENDPOINT = `https://${CODEX_HOST}/backend-api/codex/responses`
 const ORIGINATOR = 'codex_cli_rs'
 const CLI_VERSION = '0.20.0' // version-sensitive default
-const USER_AGENT = `${ORIGINATOR}/${CLI_VERSION} (${process.platform}; ${arch()}) llmgate`
+const USER_AGENT = `${ORIGINATOR}/${CLI_VERSION} (${process.platform}; ${arch()}) ownllm`
 
 const client = createCookieJarClient([CODEX_HOST])
 

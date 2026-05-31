@@ -57,13 +57,13 @@ describe('parseConfig', () => {
   })
 
   it('ignores ${...} that appears only in comments', () => {
-    const result = parseConfig('# api_key: ${LLMGATE_API_KEY}\nserver:\n  port: 8787', {})
+    const result = parseConfig('# api_key: ${OWNLLM_API_KEY}\nserver:\n  port: 8787', {})
     expect(result.ok).toBe(true)
   })
 
   it('substitutes env into the config', () => {
-    const result = parseConfig('server:\n  host: 0.0.0.0\n  api_key: ${LLMGATE_API_KEY}', {
-      LLMGATE_API_KEY: 'secret',
+    const result = parseConfig('server:\n  host: 0.0.0.0\n  api_key: ${OWNLLM_API_KEY}', {
+      OWNLLM_API_KEY: 'secret',
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return

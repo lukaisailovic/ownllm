@@ -136,7 +136,7 @@ export interface TranslateContext {
 }
 
 // FORMAT-AGNOSTIC translator between Chat Completions and a provider's native wire format.
-// Because llmgate always streams upstream, fromUpstream consumes the event stream and aggregates
+// Because ownllm always streams upstream, fromUpstream consumes the event stream and aggregates
 // (rather than taking a pre-assembled body).
 export interface Translator {
   toUpstream(request: ChatCompletionRequest, ctx: TranslateContext): unknown

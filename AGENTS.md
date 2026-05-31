@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Agent-facing guide for working in **llmgate** — a subscription-OAuth, OpenAI-compatible API gateway
+Agent-facing guide for working in **ownllm** — a subscription-OAuth, OpenAI-compatible API gateway
 with real per-request model routing. For the human-facing intro see [README.md](./README.md); for
 design depth see [`docs/`](./docs/) (start with [architecture](./docs/architecture.md)).
 
@@ -55,8 +55,8 @@ tests/support/   shared test helpers (createTestApp, fakeModule, sseResponse, re
   fixes are "unsafe" (not auto-applied): `useOptionalChain`, `useTemplate`, `noDelete`. For removing
   object keys, use the `omit()` helper or `x = undefined` (it's dropped on JSON serialization) —
   **not** `delete`.
-- **`instanceof` needs a value import.** A type-only import (e.g. `import type { LlmgateError }`)
-  makes `error instanceof LlmgateError` throw at runtime (the symbol is `undefined`), which surfaces
+- **`instanceof` needs a value import.** A type-only import (e.g. `import type { OwnllmError }`)
+  makes `error instanceof OwnllmError` throw at runtime (the symbol is `undefined`), which surfaces
   as a 500. Import such classes as values.
 - **Editing churns files.** Format/organize-imports rewrites files after a Write/Edit; re-read
   before the next edit if the harness flags the file as modified.
@@ -79,7 +79,7 @@ tests/support/   shared test helpers (createTestApp, fakeModule, sseResponse, re
   Don't bypass `UpstreamClient`.
 - **Redaction.** Never log tokens. `Credential` redacts in `toJSON`/`inspect`; raw tokens come out
   only via `toStored()` (persistence). Logger redacts `authorization`/`cookie`/`*_token`/`cf_clearance`.
-- **Error contract.** Throw a `LlmgateError` from `translate/errors.ts` (the §11 factory); the app's
+- **Error contract.** Throw a `OwnllmError` from `translate/errors.ts` (the §11 factory); the app's
   `onError` renders the OpenAI envelope + `x-request-id`. Don't hand-roll error responses.
 - **403 ≠ 401.** Branch by provider in `transport.classifyError`: Codex Cloudflare 403 → transport
   block (`codex_cloudflare_blocked`), xAI 403 → `xai_tier_denied`. Never refresh-loop on 403/429.

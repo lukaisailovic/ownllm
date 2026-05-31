@@ -46,7 +46,7 @@ let provider: CountingProvider
 let manager: RefreshManager
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'llmgate-refresh-'))
+  dir = await mkdtemp(join(tmpdir(), 'ownllm-refresh-'))
   store = new AuthStore(join(dir, 'auth.json'), join(dir, 'auth.json.lock'))
   provider = new CountingProvider()
   manager = new RefreshManager(store, new Map([[provider.id, provider]]))

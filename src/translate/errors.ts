@@ -1,5 +1,5 @@
 // OpenAI-compatible error object + the PLAN §11 status/type/code/param map. Every non-2xx response
-// is one of these, carrying an x-request-id header. Throw a LlmgateError anywhere; the server's
+// is one of these, carrying an x-request-id header. Throw a OwnllmError anywhere; the server's
 // onError handler renders it.
 export interface OpenAIErrorObject {
   message: string
@@ -8,7 +8,7 @@ export interface OpenAIErrorObject {
   code?: string
 }
 
-interface LlmgateErrorArgs {
+interface OwnllmErrorArgs {
   status: number
   type: string
   message: string
@@ -17,16 +17,16 @@ interface LlmgateErrorArgs {
   headers?: Record<string, string>
 }
 
-export class LlmgateError extends Error {
+export class OwnllmError extends Error {
   readonly status: number
   readonly type: string
   readonly code?: string
   readonly param?: string
   readonly headers: Record<string, string>
 
-  constructor(args: LlmgateErrorArgs) {
+  constructor(args: OwnllmErrorArgs) {
     super(args.message)
-    this.name = 'LlmgateError'
+    this.name = 'OwnllmError'
     this.status = args.status
     this.type = args.type
     this.code = args.code
@@ -46,8 +46,8 @@ export class LlmgateError extends Error {
   }
 }
 
-export function modelNotFound(model: string): LlmgateError {
-  return new LlmgateError({
+export function modelNotFound(model: string): OwnllmError {
+  return new OwnllmError({
     status: 404,
     type: 'invalid_request_error',
     code: 'model_not_found',
@@ -56,12 +56,12 @@ export function modelNotFound(model: string): LlmgateError {
   })
 }
 
-export function invalidRequestBody(message: string, param?: string): LlmgateError {
-  return new LlmgateError({ status: 400, type: 'invalid_request_error', message, param })
+export function invalidRequestBody(message: string, param?: string): OwnllmError {
+  return new OwnllmError({ status: 400, type: 'invalid_request_error', message, param })
 }
 
-export function invalidApiKey(): LlmgateError {
-  return new LlmgateError({
+export function invalidApiKey(): OwnllmError {
+  return new OwnllmError({
     status: 401,
     type: 'invalid_request_error',
     code: 'invalid_api_key',
@@ -69,8 +69,8 @@ export function invalidApiKey(): LlmgateError {
   })
 }
 
-export function unsupportedParameter(param: string): LlmgateError {
-  return new LlmgateError({
+export function unsupportedParameter(param: string): OwnllmError {
+  return new OwnllmError({
     status: 400,
     type: 'invalid_request_error',
     code: 'unsupported_parameter',
@@ -79,17 +79,17 @@ export function unsupportedParameter(param: string): LlmgateError {
   })
 }
 
-export function credentialExpired(): LlmgateError {
-  return new LlmgateError({
+export function credentialExpired(): OwnllmError {
+  return new OwnllmError({
     status: 401,
     type: 'invalid_request_error',
     code: 'credential_expired',
-    message: 'The stored credential is no longer valid; run `llmgate auth login`.',
+    message: 'The stored credential is no longer valid; run `ownllm auth login`.',
   })
 }
 
-export function xaiTierDenied(): LlmgateError {
-  return new LlmgateError({
+export function xaiTierDenied(): OwnllmError {
+  return new OwnllmError({
     status: 403,
     type: 'permission_error',
     code: 'xai_tier_denied',
@@ -97,17 +97,17 @@ export function xaiTierDenied(): LlmgateError {
   })
 }
 
-export function codexCloudflareBlocked(): LlmgateError {
-  return new LlmgateError({
+export function codexCloudflareBlocked(): OwnllmError {
+  return new OwnllmError({
     status: 502,
     type: 'api_error',
     code: 'codex_cloudflare_blocked',
-    message: 'The Codex upstream was blocked at the Cloudflare edge (see `llmgate doctor`).',
+    message: 'The Codex upstream was blocked at the Cloudflare edge (see `ownllm doctor`).',
   })
 }
 
-export function rateLimited(headers?: Record<string, string>): LlmgateError {
-  return new LlmgateError({
+export function rateLimited(headers?: Record<string, string>): OwnllmError {
+  return new OwnllmError({
     status: 429,
     type: 'rate_limit_error',
     code: 'rate_limit_exceeded',
@@ -116,10 +116,10 @@ export function rateLimited(headers?: Record<string, string>): LlmgateError {
   })
 }
 
-export function upstreamError(message = 'The upstream provider returned an error.'): LlmgateError {
-  return new LlmgateError({ status: 502, type: 'api_error', message })
+export function upstreamError(message = 'The upstream provider returned an error.'): OwnllmError {
+  return new OwnllmError({ status: 502, type: 'api_error', message })
 }
 
-export function internalError(): LlmgateError {
-  return new LlmgateError({ status: 500, type: 'api_error', message: 'Internal server error.' })
+export function internalError(): OwnllmError {
+  return new OwnllmError({ status: 500, type: 'api_error', message: 'Internal server error.' })
 }

@@ -101,7 +101,7 @@ function readConfigFileOrExit(path: string): string {
     return readFileSync(path, 'utf8')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      process.stderr.write(`config not found: ${path}\nrun 'llmgate config init' to create one\n`)
+      process.stderr.write(`config not found: ${path}\nrun 'ownllm config init' to create one\n`)
     } else {
       process.stderr.write(`failed to read config ${path}: ${(error as Error).message}\n`)
     }

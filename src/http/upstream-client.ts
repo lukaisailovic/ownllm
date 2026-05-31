@@ -1,5 +1,5 @@
 import {
-  type LlmgateError,
+  type OwnllmError,
   credentialExpired,
   rateLimited,
   upstreamError,
@@ -45,7 +45,7 @@ export function classifyUpstreamStatus(
   status: number,
   headers: Headers,
   providerLabel: string,
-): LlmgateError {
+): OwnllmError {
   if (status === 401) return credentialExpired()
   if (status === 429) return rateLimited(pickRateLimitHeaders(headers))
   return upstreamError(`${providerLabel} upstream returned ${status}`)
