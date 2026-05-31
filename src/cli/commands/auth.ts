@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import * as readline from 'node:readline/promises'
 import { defineCommand } from 'citty'
 import { authProviderIds, getAuthProvider } from '../../auth/auth-providers'
 import type { Credential } from '../../auth/credential'
@@ -23,7 +24,13 @@ function resolveProvider(id: string): AuthProvider {
 
 const loginCommand = defineCommand({
   meta: { name: 'login', description: 'OAuth login and store a credential' },
-  args: PROVIDER_ARG,
+  args: {
+    ...PROVIDER_ARG,
+    manual: {
+      type: 'boolean',
+      description: 'Skip the browser/loopback and paste the code by hand (headless, Docker, SSH)',
+    },
+  },
   async run({ args }) {
     const provider = resolveProvider(args.provider)
     const store = openAuthStore()
@@ -34,6 +41,8 @@ const loginCommand = defineCommand({
       const credential = await provider.login({
         signal: controller.signal,
         report: (message) => process.stdout.write(`${message}\n`),
+        prompt: (message) => promptLine(message, controller.signal),
+        manual: args.manual === true,
       })
       await store.setCredential(provider.id, credential)
       process.stdout.write(`logged in to ${provider.id}\n`)
@@ -131,6 +140,15 @@ async function formatStatus(store: AuthStore, id: string): Promise<string> {
   const expiry = new Date(summary.expires_at * 1000).toISOString()
   const state = expired ? 'EXPIRED' : 'valid'
   return `${id}: ${state}  identity=${identity}  token=…${summary.access_token_last4}  expires=${expiry}\n`
+}
+
+async function promptLine(message: string, signal: AbortSignal): Promise<string> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    return (await rl.question(message, { signal })).trim()
+  } finally {
+    rl.close()
+  }
 }
 
 function exitWithAuthError(error: unknown): never {

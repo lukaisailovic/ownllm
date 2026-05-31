@@ -6,6 +6,10 @@ import type { TranslateContext, Translator } from '../translate/types'
 export interface LoginContext {
   signal?: AbortSignal
   report(message: string): void
+  // Read one line of input from the user (e.g. a pasted OAuth code); rejects if input is aborted.
+  prompt(message: string): Promise<string>
+  // User asked to skip the browser/loopback and paste the code by hand (headless, Docker, SSH).
+  manual?: boolean
 }
 
 // An AuthProvider owns one provider's OAuth lifecycle: interactive login, token refresh, and the

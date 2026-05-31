@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Credential } from '../../src/auth/credential'
 import { getProvider } from '../../src/providers/registry'
 import { XAI_MODELS, discoverXaiModels, parseModelList } from '../../src/providers/xai/models'
+import { parsePastedCallback } from '../../src/providers/xai/oauth'
 import { sanitizeXaiResponsesBody } from '../../src/providers/xai/sanitize'
 import { xaiTransport } from '../../src/providers/xai/transport'
 import { resolveModel } from '../../src/router/resolve'
@@ -118,6 +119,30 @@ describe('xai models', () => {
 
   it('returns the static catalog without a credential', async () => {
     expect(await discoverXaiModels()).toBe(XAI_MODELS)
+  })
+})
+
+describe('parsePastedCallback', () => {
+  it('parses a full loopback callback URL', () => {
+    expect(parsePastedCallback('http://127.0.0.1:56121/callback?code=abc&state=xyz')).toEqual({
+      code: 'abc',
+      state: 'xyz',
+      error: undefined,
+    })
+  })
+
+  it('parses a bare query fragment with or without a leading ?', () => {
+    expect(parsePastedCallback('?code=abc&state=xyz')).toMatchObject({ code: 'abc', state: 'xyz' })
+    expect(parsePastedCallback('code=abc&state=xyz')).toMatchObject({ code: 'abc', state: 'xyz' })
+  })
+
+  it('treats a bare opaque value as a code with no state', () => {
+    expect(parsePastedCallback('  the-code-value  ')).toEqual({ code: 'the-code-value' })
+  })
+
+  it('surfaces an error param and returns empty for blank input', () => {
+    expect(parsePastedCallback('?error=access_denied').error).toBe('access_denied')
+    expect(parsePastedCallback('   ')).toEqual({})
   })
 })
 

@@ -10,6 +10,7 @@ import {
   readJsonBody,
 } from '../../auth/oauth-http'
 import { delay } from '../../util/async'
+import { canOpenBrowser } from '../../util/environment'
 import { asRecord, getNumber, getString } from '../../util/json'
 import type { AuthProvider, LoginContext } from '../types'
 
@@ -50,9 +51,9 @@ class CodexAuthProvider implements AuthProvider {
   async login(ctx: LoginContext): Promise<Credential> {
     const device = await this.startDeviceAuth(ctx.signal)
     ctx.report(
-      `To authorize Codex, open:\n  ${CODEX.devicePageUrl}\nand enter the code: ${device.userCode}`,
+      `To authorize Codex, open this URL on any device:\n  ${CODEX.devicePageUrl}\nand enter the code: ${device.userCode}`,
     )
-    await open(CODEX.devicePageUrl).catch(() => {})
+    if (canOpenBrowser()) await open(CODEX.devicePageUrl).catch(() => {})
     const grant = await this.pollForGrant(device, ctx)
     const tokens = await this.exchange(grant, ctx.signal)
     return codexCredentialFromTokens(tokens)
