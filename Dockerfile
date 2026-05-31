@@ -4,11 +4,14 @@
 FROM node:22-slim AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+# Pin pnpm to match packageManager in package.json. The fetch stage runs before
+# package.json is copied, so corepack can't infer the version and would otherwise pull
+# pnpm-latest, whose newer supply-chain defaults can reject an otherwise-valid lockfile.
+RUN corepack enable && corepack prepare pnpm@10.34.1 --activate
 WORKDIR /app
 
 FROM base AS fetch
-COPY pnpm-lock.yaml ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm fetch --frozen-lockfile
 
 FROM fetch AS build

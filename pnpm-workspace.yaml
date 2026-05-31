@@ -1,0 +1,7 @@
+# Supply-chain guard: don't install a dependency version until it has been public for
+# this many minutes, giving a malicious or compromised release time to be caught and
+# yanked before it can reach us. 4320 = 3 days. Raise toward 10080 (1 week) for more
+# caution, or lower to iterate faster. Only brand-new releases wait — established
+# versions are already older than the window — so day-to-day installs are unaffected.
+# Whitelist a package that needs an urgent update with minimumReleaseAgeExclude.
+minimumReleaseAge: 4320
