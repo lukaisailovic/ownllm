@@ -15,6 +15,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsx watch src/main.ts",
+    "cli": "tsx src/main.ts",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
