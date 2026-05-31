@@ -60,6 +60,14 @@ valid. These map to the HTTP error contract in [api.md](./api.md).
 
 ```
 llmgate auth login <openai-codex|xai>
-llmgate auth status      # redacted: identity, last4, expiry, validity
+llmgate auth status            # redacted: identity, last4, expiry, validity
 llmgate auth logout <provider>
+llmgate auth import openai-codex   # import from ~/.codex (CODEX_HOME); warns about the rotation war
+llmgate doctor                 # credential health + Codex Cloudflare probe + xAI tier/models check
+llmgate models [--remote]      # config routing table; --remote discovers upstream models
 ```
+
+`auth import` reuses the official Codex CLI's stored tokens. It is deliberately gated to
+`openai-codex` and prints a warning: the refresh token is shared, so using both tools rotates it and
+can revoke both credentials. `auth login` is preferred.
+

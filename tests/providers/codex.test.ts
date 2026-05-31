@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { Credential } from '../../src/auth/credential'
+import { codexCredentialFromTokens } from '../../src/providers/codex/oauth'
 import { codexTransport } from '../../src/providers/codex/transport'
 import { getProvider } from '../../src/providers/registry'
 import { ctx } from '../support/responses'
+
+function jwt(payload: Record<string, unknown>): string {
+  const segment = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  return `${segment({ alg: 'none' })}.${segment(payload)}.`
+}
 
 const credential = new Credential({
   type: 'oauth',
@@ -45,5 +51,21 @@ describe('codex provider', () => {
 
   it('adds store:false in sanitizeBody', () => {
     expect(codexTransport.sanitizeBody?.({ input: [] }, ctx())).toEqual({ input: [], store: false })
+  })
+})
+
+describe('codexCredentialFromTokens (import)', () => {
+  it('extracts tokens, account id, and expiry from a ~/.codex token object', () => {
+    const idToken = jwt({ 'https://api.openai.com/auth': { chatgpt_account_id: 'acct_77' } })
+    const accessToken = jwt({ exp: 4_000_000_000 })
+    const credential = codexCredentialFromTokens({
+      access_token: accessToken,
+      refresh_token: 'imported-refresh',
+      id_token: idToken,
+    })
+    expect(credential.accessToken).toBe(accessToken)
+    expect(credential.refreshToken).toBe('imported-refresh')
+    expect(credential.accountId).toBe('acct_77')
+    expect(credential.expiresAt).toBe(4_000_000_000)
   })
 })

@@ -1,9 +1,14 @@
+import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { defineCommand } from 'citty'
 import { authProviderIds, getAuthProvider } from '../../auth/auth-providers'
+import type { Credential } from '../../auth/credential'
 import { AuthError } from '../../auth/errors'
 import { type AuthStore, openAuthStore } from '../../auth/store'
+import { codexCredentialFromTokens } from '../../providers/codex/oauth'
 import type { AuthProvider } from '../../providers/types'
-import { notImplemented } from '../notImplemented'
+import { asRecord } from '../../util/json'
 
 const PROVIDER_ARG = {
   provider: { type: 'positional', description: 'Provider id (openai-codex | xai)', required: true },
@@ -69,8 +74,41 @@ const logoutCommand = defineCommand({
 const importCommand = defineCommand({
   meta: { name: 'import', description: 'Import credentials from an official CLI' },
   args: PROVIDER_ARG,
-  run: () => notImplemented('auth import'),
+  async run({ args }) {
+    if (args.provider !== 'openai-codex') {
+      process.stderr.write(`import is only supported for openai-codex (got '${args.provider}')\n`)
+      process.exit(1)
+    }
+    process.stderr.write(
+      'warning: this shares the refresh token with the official Codex CLI. Using both rotates the\n' +
+        'shared token and can revoke BOTH credentials. Prefer `llmgate auth login openai-codex`.\n',
+    )
+    await openAuthStore().setCredential('openai-codex', readCodexCredentialOrExit())
+    process.stdout.write('imported openai-codex credential\n')
+  },
 })
+
+function readCodexCredentialOrExit(): Credential {
+  const file = join(process.env.CODEX_HOME ?? join(homedir(), '.codex'), 'auth.json')
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(readFileSync(file, 'utf8'))
+  } catch {
+    process.stderr.write(`could not read ${file}; is the Codex CLI logged in?\n`)
+    process.exit(1)
+  }
+  const tokens = asRecord(asRecord(parsed)?.tokens) ?? asRecord(parsed)
+  if (!tokens) {
+    process.stderr.write(`no tokens found in ${file}\n`)
+    process.exit(1)
+  }
+  try {
+    return codexCredentialFromTokens(tokens)
+  } catch (error) {
+    process.stderr.write(`failed to import: ${(error as Error).message}\n`)
+    process.exit(1)
+  }
+}
 
 export const authCommand = defineCommand({
   meta: { name: 'auth', description: 'Manage provider credentials' },

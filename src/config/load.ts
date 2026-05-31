@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { parse as parseYaml } from 'yaml'
+import { resolvePaths } from './paths'
 import { type Config, ConfigSchema } from './schema'
 
 const ENV_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g
@@ -78,6 +79,11 @@ export function parseConfig(raw: string, env?: NodeJS.ProcessEnv): ConfigResult 
       message: issue.message,
     })),
   }
+}
+
+// CLI entry point: load from the given path or the default config location, exiting on error.
+export function loadConfigForCli(configArg?: string): Config {
+  return loadConfigOrExit(configArg ?? resolvePaths().configFile)
 }
 
 export function loadConfigOrExit(path: string): Config {

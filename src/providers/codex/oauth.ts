@@ -55,7 +55,7 @@ class CodexAuthProvider implements AuthProvider {
     await open(CODEX.devicePageUrl).catch(() => {})
     const grant = await this.pollForGrant(device, ctx)
     const tokens = await this.exchange(grant, ctx.signal)
-    return toCredential(tokens)
+    return codexCredentialFromTokens(tokens)
   }
 
   async refresh(credential: Credential): Promise<Credential> {
@@ -64,7 +64,7 @@ class CodexAuthProvider implements AuthProvider {
       client_id: CODEX.clientId,
       refresh_token: credential.refreshToken,
     })
-    return toCredential(await parseTokenResponse(res), credential)
+    return codexCredentialFromTokens(await parseTokenResponse(res), credential)
   }
 
   private async startDeviceAuth(signal?: AbortSignal): Promise<DeviceAuth> {
@@ -133,7 +133,8 @@ class CodexAuthProvider implements AuthProvider {
   }
 }
 
-function toCredential(tokens: unknown, previous?: Credential): Credential {
+// Builds a Codex credential from an OAuth token response or an imported ~/.codex token object.
+export function codexCredentialFromTokens(tokens: unknown, previous?: Credential): Credential {
   const { accessToken, refreshToken, idToken } = extractBaseTokens(tokens, {
     refreshToken: previous?.refreshToken,
     idToken: previous?.idToken,

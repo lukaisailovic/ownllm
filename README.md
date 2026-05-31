@@ -23,9 +23,11 @@ OpenAI `model_not_found` 404.
 
 ## Status
 
-Early. See `PLAN.md` for the milestone roadmap. P0 (scaffold) is in place: the CLI,
-config loading, and a health endpoint work; provider auth and inference land in
-later milestones.
+The full pipeline is implemented: OAuth login for both providers, the OpenAI-compatible server
+(`/v1/chat/completions` + `/v1/models`), Chat Completions ⇄ Responses translation (streaming and
+non-streaming, tools, usage), per-request routing, reactive token refresh, and the `auth`/`doctor`/
+`models` tooling. The one thing only you can verify is live reachability against your own
+subscriptions — run `llmgate doctor`. See `PLAN.md` for the milestone history.
 
 ## Requirements
 

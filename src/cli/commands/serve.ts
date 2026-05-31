@@ -3,9 +3,8 @@ import { defineCommand } from 'citty'
 import { authProviders } from '../../auth/auth-providers'
 import { RefreshManager } from '../../auth/refresh'
 import { openAuthStore } from '../../auth/store'
-import { loadConfigOrExit } from '../../config/load'
+import { loadConfigForCli } from '../../config/load'
 import { isLoopbackHost } from '../../config/loopback'
-import { resolvePaths } from '../../config/paths'
 import { logger } from '../../logger'
 import { getProvider } from '../../providers/registry'
 import { createApp } from '../../server/app'
@@ -21,8 +20,7 @@ export const serveCommand = defineCommand({
     port: { type: 'string', description: 'Override bind port' },
   },
   run({ args }) {
-    const configPath = args.config ?? resolvePaths().configFile
-    const config = loadConfigOrExit(configPath)
+    const config = loadConfigForCli(args.config)
 
     const host = args.host ?? config.server.host
     const port = args.port ? Number.parseInt(args.port, 10) : config.server.port
