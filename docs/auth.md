@@ -1,73 +1,113 @@
 # Authentication
 
-llmgate authenticates to providers with **subscription OAuth**, not API keys. Each provider owns its
-flow behind the `AuthProvider` interface; the shared store and refresh manager treat credentials
-opaquely.
+llmgate reaches each provider through your subscription login instead of an API key. You log in once
+per provider, llmgate stores the OAuth tokens under `~/.llmgate/`, and from then on it refreshes them
+for you.
 
-## OAuth flows
+Two providers are supported:
 
-- **Codex (ChatGPT)** — device-code, no browser bind ([`providers/codex/oauth.ts`](../src/providers/codex/oauth.ts)).
-  Start a device authorization, print a URL + code, poll for the grant (honoring `slow_down`,
-  `authorization_pending`, expiry, and Ctrl-C), then exchange the returned authorization code +
-  server-issued verifier for tokens. Works headless/in Docker.
-- **xAI Grok** — loopback authorization-code + PKCE ([`providers/xai/oauth.ts`](../src/providers/xai/oauth.ts)).
-  Discover endpoints from `auth.x.ai/.well-known/openid-configuration`, open the browser, and catch
-  the redirect on a loopback server whose preflight grants CORS + Private Network Access. The token
-  exchange echoes `code_challenge` (xAI re-validates it). `state` and the id_token `nonce` are
-  verified.
+| Provider | Subscription | Login id |
+|---|---|---|
+| ChatGPT / Codex | ChatGPT Plus, Pro, or Business | `openai-codex` |
+| xAI Grok | Grok or SuperGrok | `xai` |
 
-These are hand-rolled because both deviate from standard OAuth in ways general libraries fight
-(Codex's bespoke device endpoints; xAI's challenge echo + PNA loopback).
+## Logging in
 
-## Credential and redaction
-
-[`Credential`](../src/auth/credential.ts) wraps the stored token data. Its `toJSON` and
-`util.inspect` representations are **redacted** (`***`), so an accidental log or `JSON.stringify`
-cannot leak a token. Raw tokens are only exposed through `toStored()` for persistence. `auth status`
-shows the last 4 characters and expiry only.
-
-`expires_at` is an absolute epoch (seconds), normalized at store time: Codex uses the access
-token's JWT `exp`; xAI uses `now + expires_in` (falling back to the JWT `exp`). `isExpired` is
-`now + skew >= expires_at`, with a per-provider skew (Codex 300s, xAI 120s).
-
-## Token store
-
-[`AuthStore`](../src/auth/store.ts) keeps `~/.llmgate/auth.json` at mode `0600` inside a `0700`
-directory, written atomically (`O_EXCL` temp file → `rename`). It is keyed per provider; v1 stores a
-single active credential but the array shape leaves room for pooling later. An advisory
-`auth.json.lock` (with stale-break by mtime) serializes read-modify-write across processes (a second
-`serve`/`doctor`).
-
-## Refresh: single-flight
-
-[`RefreshManager`](../src/auth/refresh.ts) prevents concurrent refreshes from rotating the
-refresh token in parallel and mutually invalidating it (which would force a re-login). Two layers:
-
-- **In-process:** one in-flight `Promise` per provider; concurrent callers await it.
-- **Cross-process:** `AuthStore.update` holds the file lock and re-reads under it, so a refresh that
-  lost the race observes the winner's rotated token instead of clobbering it.
-
-The reactive path (refresh after a 401) additionally honors a 10s min-interval guard, so a
-stale-server 401 right after a fresh refresh can't burn a second rotation.
-
-## Error classification
-
-`invalid_grant` / `refresh_token_*` → the credential is dead, re-login required. An xAI 403 on a
-token endpoint → tier denied (not a token error; do not retry). 429 → rate limited, token still
-valid. These map to the HTTP error contract in [api.md](./api.md).
-
-## CLI
-
-```
-llmgate auth login <openai-codex|xai>
-llmgate auth status            # redacted: identity, last4, expiry, validity
-llmgate auth logout <provider>
-llmgate auth import openai-codex   # import from ~/.codex (CODEX_HOME); warns about the rotation war
-llmgate doctor                 # credential health + Codex Cloudflare probe + xAI tier/models check
-llmgate models [--remote]      # config routing table; --remote discovers upstream models
+```bash
+llmgate auth login openai-codex
+llmgate auth login xai
 ```
 
-`auth import` reuses the official Codex CLI's stored tokens. It is deliberately gated to
-`openai-codex` and prints a warning: the refresh token is shared, so using both tools rotates it and
-can revoke both credentials. `auth login` is preferred.
+The two flows differ a little, because the providers do.
 
+### ChatGPT / Codex
+
+`llmgate auth login openai-codex` prints a URL and a short code:
+
+```
+To authorize Codex, open this URL on any device:
+  https://auth.openai.com/codex/device
+and enter the code: ABCD-EFGH
+```
+
+Open the URL, sign in to ChatGPT, type the code. The terminal finishes on its own once you approve.
+Because you enter the code by hand, the device with the browser doesn't have to be the one running
+llmgate: your phone works, and so does a laptop on the near end of an SSH session. This flow behaves
+the same on a headless server as on your desktop.
+
+### xAI Grok
+
+If the machine has a browser, `llmgate auth login xai` opens it and catches the result for you.
+Approve the request and you're done.
+
+If it doesn't (think containers, SSH sessions, cloud shells), there's no browser to open and nothing
+local for xAI's redirect to reach. llmgate notices and switches to a paste flow instead: it prints a
+URL, you open it on whatever machine does have a browser, and you paste the result back. You can
+force that mode anywhere with `--manual`:
+
+```bash
+llmgate auth login xai --manual
+```
+
+The paste flow is three steps:
+
+1. Open the printed URL in any browser and approve the request.
+2. Your browser gets redirected to a `http://127.0.0.1:…` address that won't load. That is expected;
+   the page never needs to load.
+3. Copy that whole address out of the address bar and paste it into the terminal. If xAI showed a
+   code on the page instead of redirecting, paste the code on its own.
+
+One thing worth knowing up front: xAI only grants programmatic access to certain subscription tiers.
+If login succeeds but your requests come back as `xai_tier_denied`, the account isn't entitled, and
+logging in again won't change that. See [troubleshooting](#troubleshooting).
+
+## Checking what's stored
+
+```bash
+llmgate auth status
+```
+
+prints each stored credential: the account it belongs to, the last four characters of the token,
+when it expires, and whether it's still valid. Full tokens are never printed.
+
+`llmgate doctor` goes a step further and actually probes each provider to see whether it's reachable
+from where you're running. That's the quickest way to tell an entitlement problem apart from a plain
+network one.
+
+## Logging out
+
+```bash
+llmgate auth logout xai
+```
+
+removes that one provider's credential and leaves the others alone.
+
+## Reusing an existing Codex login
+
+Already using the official Codex CLI? You can import its tokens instead of logging in again:
+
+```bash
+llmgate auth import openai-codex
+```
+
+This reads whatever the Codex CLI saved under `~/.codex` (or `$CODEX_HOME`). Be careful with it: the
+two tools then share one refresh token, and the first to refresh invalidates the other's session, so
+you can get logged out of both at once. A plain `llmgate auth login openai-codex` keeps the sessions
+separate and is the safer default.
+
+## Where credentials live
+
+Tokens go in `~/.llmgate/auth.json`, owner-readable only (`0600`), kept apart from your config. Set
+`LLMGATE_HOME` to move that directory. To hand another machine a login (a container, say), copy that
+file across or mount the directory in — no second login needed.
+
+## Troubleshooting
+
+| You see | What it means | What to do |
+|---|---|---|
+| `credential_expired` (401) | The token expired and couldn't be refreshed. | Run `llmgate auth login <provider>` again. |
+| `xai_tier_denied` (403) | Your xAI account isn't allowlisted for API access. | A tier gate on xAI's end; re-logging in won't help. Check your plan at x.ai. |
+| `codex_cloudflare_blocked` (502) | Cloudflare challenged the request, which is common on datacenter and Docker IPs. | Try from a residential or home-server IP. It's a network block, not a bad token. |
+| xAI login sits on "waiting for callback" | The browser can't reach the loopback listener on this machine. | Press Ctrl-C and re-run with `--manual`. |
+
+The full list of error codes is in the [HTTP API reference](./api.md#errors).

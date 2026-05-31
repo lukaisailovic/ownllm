@@ -21,37 +21,20 @@ llmgate routes per request. A YAML table maps each model name you expose to a `{
 pair, and a model that isn't in the table gets a normal OpenAI `model_not_found` 404. So one server
 can serve `gpt-5` and `grok` side by side.
 
-## Requirements
-
-- Node.js 22 or newer
-- pnpm (run `corepack enable` if you don't have it)
-
-## Install
-
-```bash
-git clone <this-repo> && cd llmgate
-pnpm install
-pnpm build          # builds dist/main.js, the `llmgate` CLI
-```
-
-The examples below assume an alias:
-
-```bash
-alias llmgate="node $(pwd)/dist/main.js"
-```
-
-(Or `pnpm link --global` to put `llmgate` on your PATH. While hacking on the code, `pnpm dev -- serve`
-runs the CLI through `tsx` with no build step.)
-
 ## Quickstart
 
+You need **Node.js 22 or newer**. No install or build step — run it straight from npm with `npx`:
+
 ```bash
-llmgate config init                 # writes ~/.llmgate/config.yaml
-llmgate auth login openai-codex     # device code; prints a URL to open
-llmgate auth login xai              # opens a browser for the loopback flow
-llmgate doctor                      # checks token health + reachability before you rely on it
-llmgate serve                       # binds 127.0.0.1:8787; no client key needed on loopback
+npx llmgate config init                 # writes ~/.llmgate/config.yaml
+npx llmgate auth login openai-codex     # device code; prints a URL to open
+npx llmgate auth login xai              # browser loopback locally; --manual to paste a code (headless/Docker)
+npx llmgate doctor                      # checks token health + reachability before you rely on it
+npx llmgate serve                       # binds 127.0.0.1:8787; no client key needed on loopback
 ```
+
+Reaching for it often? `npm install -g llmgate` puts `llmgate` on your PATH, so you can drop the
+`npx` from every command below. (To run from a checkout instead, see [Development](#development).)
 
 Now call it like any OpenAI endpoint:
 
@@ -137,9 +120,11 @@ export LLMGATE_API_KEY=$(openssl rand -hex 32)
 docker compose up --build
 ```
 
-Logging in from inside a container is awkward: Codex prints a device code, but Grok wants a browser
-on a loopback port. The path of least resistance is to run `llmgate auth login` on your host and
-mount `~/.llmgate` into the container. See [docs/configuration.md](./docs/configuration.md).
+Logging in from inside a container works headless: Codex prints a device code, and Grok auto-detects
+the container and falls back to a paste-the-code flow (force it with `llmgate auth login xai
+--manual`). Open the printed URL on any machine, approve, and paste the callback URL or code back.
+You can also log in on your host and mount `~/.llmgate` into the container. See
+[docs/configuration.md](./docs/configuration.md).
 
 ## When something breaks
 
@@ -153,12 +138,32 @@ Start with `llmgate doctor`. The errors you're most likely to hit:
 - **`credential_expired` (401)**: run `llmgate auth login <provider>` again.
 - **`model_not_found` (404)**: the model isn't in your `models` table. Check `llmgate models`.
 
+## Development
+
+Working from a checkout instead of npm. Requires Node.js 22+ and pnpm (`corepack enable` if you
+don't have it).
+
+```bash
+git clone <this-repo> && cd llmgate
+pnpm install
+pnpm dev -- serve   # run the CLI through tsx, no build (e.g. pnpm dev -- auth login xai)
+pnpm build          # bundle dist/main.js, the published `llmgate` CLI
+```
+
+Before sending a change: `pnpm format && pnpm lint && pnpm typecheck && pnpm test`. The full
+contributor guide is [AGENTS.md](./AGENTS.md).
+
 ## Documentation
 
-The [`docs/`](./docs/) folder covers [architecture](./docs/architecture.md),
-[adding a provider](./docs/providers.md), [translation](./docs/translation.md),
-[authentication](./docs/auth.md), [configuration](./docs/configuration.md), and the
-[HTTP API](./docs/api.md). Working on llmgate with an AI agent? Read [AGENTS.md](./AGENTS.md).
+The guides in [`docs/`](./docs/):
+
+- [Authentication](./docs/auth.md) — logging in, including headless servers and Docker.
+- [Configuration](./docs/configuration.md) — the config file and the model routing table.
+- [HTTP API](./docs/api.md) — endpoints, clients, and the errors you may hit.
+
+For how it works under the hood, see [architecture](./docs/architecture.md),
+[adding a provider](./docs/providers.md), and [translation](./docs/translation.md). Hacking on
+llmgate (with or without an AI agent)? Start with [AGENTS.md](./AGENTS.md).
 
 ## Disclaimer
 

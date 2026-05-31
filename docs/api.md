@@ -1,21 +1,62 @@
 # HTTP API
 
-llmgate exposes an OpenAI-compatible surface. Point any OpenAI client at `http://<host>:<port>/v1`
-with `server.api_key` as the API key.
+llmgate speaks the OpenAI API. Point any OpenAI-compatible client at `http://<host>:<port>/v1` and
+use your `server.api_key` as the API key. On loopback no key is required, but most SDKs insist on a
+non-empty string anyway, so pass any placeholder.
+
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "authorization: Bearer $LLMGATE_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model":"grok","messages":[{"role":"user","content":"hello"}]}'
+```
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:8787/v1", api_key="local")
+print(
+    client.chat.completions.create(
+        model="gpt-5",
+        messages=[{"role": "user", "content": "hi"}],
+    ).choices[0].message.content
+)
+```
+
+`model` is a name from your [models table](./configuration.md#the-models-table), not an upstream id.
 
 ## Endpoints
 
-| Method | Path | Notes |
+| Method | Path | What it does |
 |---|---|---|
-| `GET` | `/health` | Liveness; `200 {"status":"ok"}` while serving. |
-| `GET` | `/ready` | `200` if config is valid and ≥1 enabled provider has a credential, else `503`. |
-| `GET` | `/v1/models` | Lists configured model keys (OpenAI list shape). |
-| `POST` | `/v1/chat/completions` | Chat Completions; streaming and non-streaming. |
+| `POST` | `/v1/chat/completions` | Chat Completions, streaming or not. |
+| `GET` | `/v1/models` | Lists the model names you've configured. |
+| `GET` | `/health` | Liveness: `200 {"status":"ok"}` while the server is up. |
+| `GET` | `/ready` | `200` once config is valid and at least one provider has a credential, else `503`. |
 
-`/v1/*` requires the client api key (unless loopback-only); `/health` and `/ready` do not. Every
-response carries an `x-request-id` header (minted, or echoed from the request).
+Everything under `/v1` needs the API key unless you're bound to loopback; `/health` and `/ready`
+never do. Every response carries an `x-request-id` header — quote it if you report a problem.
 
-### `GET /v1/models`
+## Chat completions
+
+A standard OpenAI request. Set `stream: true` for a `text/event-stream` of `chat.completion.chunk`
+events that ends in a single `data: [DONE]`; add `stream_options: {include_usage: true}` and a final
+usage chunk arrives just before `[DONE]`. Token counts pass straight through from the provider.
+
+### Which parameters are honored
+
+By default, llmgate forwards what the upstreams understand and quietly drops the rest:
+
+- Honored: `temperature`, `top_p`, `max_tokens` / `max_completion_tokens`, `response_format`,
+  `reasoning_effort`, `tools`, `tool_choice`, `stream`, `stream_options.include_usage`.
+- Dropped: `presence_penalty`, `frequency_penalty`, `logit_bias`, `seed`, `stop`, `logprobs`,
+  `top_logprobs`, `user`. They're logged at `debug` so you can see what got dropped.
+- `n > 1` is rejected with a 400.
+
+Set `server.strict_params: true` to turn that dropped list into 400s instead. Reach for it when you'd
+rather hear that a parameter isn't taking effect than have it silently ignored.
+
+### GET /v1/models
 
 ```json
 { "object": "list", "data": [
@@ -23,46 +64,26 @@ response carries an `x-request-id` header (minted, or echoed from the request).
 ] }
 ```
 
-`id` is the config model key; `owned_by` is the provider id; `created` is the server start time.
+`id` is your configured name; `owned_by` is the provider behind it.
 
-### `POST /v1/chat/completions`
+## Errors
 
-Standard request. Streaming (`stream:true`) returns `text/event-stream` of
-`chat.completion.chunk` objects terminated by exactly one `data: [DONE]`. With
-`stream_options.include_usage`, a final `{choices:[], usage}` chunk precedes `[DONE]`.
+Errors use the OpenAI envelope, `{"error": {"message", "type", "param"?, "code"?}}`, with the
+`x-request-id` header set.
 
-## Parameter policy
+| Situation | HTTP | code |
+|---|---|---|
+| Model isn't in your config | 404 | `model_not_found` |
+| Malformed request body | 400 | (none) |
+| Missing or wrong API key | 401 | `invalid_api_key` |
+| `n > 1`, or a dropped param under `strict_params` | 400 | `unsupported_parameter` |
+| Credential expired and couldn't refresh | 401 | `credential_expired` |
+| xAI account not entitled | 403 | `xai_tier_denied` |
+| Codex blocked by Cloudflare | 502 | `codex_cloudflare_blocked` |
+| Upstream rate limit | 429 | `rate_limit_exceeded` |
+| Upstream 5xx, or a translation fault | 502 | (none) |
 
-Default (`strict_params:false`):
-
-- **Mapped/forwarded:** `temperature`, `top_p`, `max_tokens`|`max_completion_tokens`,
-  `response_format`, `reasoning_effort`, `tools`, `tool_choice`, `stream`,
-  `stream_options.include_usage`.
-- **Ignored + debug-logged:** `presence_penalty`, `frequency_penalty`, `logit_bias`, `seed`, `stop`,
-  `logprobs`, `top_logprobs`, `user`.
-- **`n>1`** → 400.
-
-`strict_params:true` turns the ignored set into 400s.
-
-## Error contract
-
-All non-2xx responses are `{"error":{"message","type","param"?,"code"?}}` with an `x-request-id`
-header.
-
-| Condition | HTTP | type | code |
-|---|---|---|---|
-| model not in config | 404 | invalid_request_error | model_not_found |
-| body / zod invalid | 400 | invalid_request_error | — |
-| client auth missing/bad | 401 | invalid_request_error | invalid_api_key |
-| `n>1` / ignored param under strict | 400 | invalid_request_error | unsupported_parameter |
-| credential dead / 401 after refresh | 401 | invalid_request_error | credential_expired |
-| xAI tier denied (403) | 403 | permission_error | xai_tier_denied |
-| Codex Cloudflare block (403 HTML) | 502 | api_error | codex_cloudflare_blocked |
-| upstream 429 | 429 | rate_limit_error | rate_limit_exceeded |
-| upstream 5xx / translate fault | 502 | api_error | — |
-
-The model-not-found message mirrors OpenAI (`The model 'X' does not exist or you do not have access
-to it.`) and does not enumerate models — use `llmgate models`. A 429 passes through `Retry-After`
-and rate-limit headers; llmgate never refreshes or retries on a 429.
-
-The factory for these lives in [`src/translate/errors.ts`](../src/translate/errors.ts).
+A `model_not_found` reply mirrors OpenAI's wording and doesn't list your models — run `llmgate
+models` for that. On a 429, llmgate passes the upstream's `Retry-After` straight through and never
+retries for you. For what these mean when you're logging in, see
+[Authentication](./auth.md#troubleshooting).

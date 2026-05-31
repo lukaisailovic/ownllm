@@ -1,16 +1,23 @@
 # llmgate documentation
 
-llmgate is an OpenAI-compatible API server that runs on LLM **subscriptions** (ChatGPT/Codex,
-xAI Grok) over OAuth instead of API keys, and does real per-request routing by the requested
-`model`.
+llmgate is an OpenAI-compatible API server that runs on your LLM subscriptions (ChatGPT/Codex, xAI
+Grok) over OAuth instead of API keys, routing each request to a backend by the model name you ask
+for.
 
-- [Architecture](./architecture.md) — layers, request flow, and the module map.
-- [Adding a provider](./providers.md) — the extension contract (`ProviderModule`).
-- [Translation](./translation.md) — Chat Completions ⇄ OpenAI Responses.
-- [Authentication](./auth.md) — OAuth flows, the token store, and refresh lifecycle.
-- [Configuration](./configuration.md) — the YAML config and environment variables.
-- [HTTP API](./api.md) — endpoints and the error contract.
+New here? Start with the [Quickstart](../README.md#quickstart), then read the guides.
 
-These docs track the implemented code. Milestones are in [`../PLAN.md`](../PLAN.md); the build
-order is P0 scaffold → P1 auth → P2 server contract → P3 provider framework + Codex → P4 Grok →
-P5 reliability → P6 tooling.
+## Guides
+
+- [Authentication](./auth.md) — log in to each provider, including headless servers and Docker.
+- [Configuration](./configuration.md) — the config file, the model routing table, and locking down
+  the port.
+- [HTTP API](./api.md) — the endpoints, calling them from any OpenAI client, and the errors you may
+  hit.
+
+## Internals and contributing
+
+- [Architecture](./architecture.md) — layers, request flow, reliability, and security posture.
+- [Adding a provider](./providers.md) — the provider extension contract.
+- [Translation](./translation.md) — how Chat Completions maps onto the OpenAI Responses API.
+
+Working on the code? [AGENTS.md](../AGENTS.md) is the contributor guide.

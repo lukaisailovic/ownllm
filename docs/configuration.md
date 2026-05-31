@@ -1,56 +1,103 @@
 # Configuration
 
-Config lives at `~/.llmgate/config.yaml`. Override the directory with `LLMGATE_HOME`, or pass a path
-with `serve --config`. `llmgate config init` writes a starter file. A working example is
-[`config.example.yaml`](../config.example.yaml).
+llmgate reads one YAML file. `llmgate config init` writes a starter copy to `~/.llmgate/config.yaml`;
+edit it and restart `serve` to pick up changes (there is no hot reload). A fully commented reference
+lives in [`config.example.yaml`](../config.example.yaml).
 
-## Schema
+To keep config and credentials somewhere other than `~/.llmgate`, set `LLMGATE_HOME`. To load a
+one-off file, pass `serve --config /path/to.yaml`.
+
+## A minimal config
 
 ```yaml
 server:
-  host: 127.0.0.1            # non-loopback host requires api_key, or the server refuses to start
+  host: 127.0.0.1
   port: 8787
-  api_key: ${LLMGATE_API_KEY}  # client auth (timing-safe); optional only when host is loopback
-  request_timeout_ms: 600000  # upstream abort deadline
-  strict_params: false        # true => unsupported params return 400 instead of being ignored
-providers:                    # open record keyed by provider id
+providers:
   openai-codex: { enabled: true }
   xai:          { enabled: true }
-models:                       # routing table: requested model -> upstream provider + model
-  gpt-5:  { provider: openai-codex, upstream: gpt-5 }
-  grok:   { provider: xai,          upstream: grok-build, reasoning_effort: medium }
+models:
+  gpt-5: { provider: openai-codex, upstream: gpt-5 }
+  grok:  { provider: xai,          upstream: grok-build, reasoning_effort: medium }
 ```
 
-- **`models`** is the routing table. The requested `model` is matched **exactly** (case-sensitive);
-  an absent model returns a 404 `model_not_found`. `reasoning_effort` sets a per-model default used
-  when the request omits one.
-- Each model's `provider` must be declared under `providers`, or load fails.
+## The models table
 
-Loading is restart-only (no hot reload), so there are no live routing-table races.
+`models` is the routing table: it maps the model name a client asks for to the provider and upstream
+model that should serve it. This is the part that makes llmgate worth running.
 
-## `${ENV}` interpolation
+```yaml
+models:
+  gpt-5: { provider: openai-codex, upstream: gpt-5 }
+  fast:  { provider: openai-codex, upstream: gpt-5-mini }
+  grok:  { provider: xai,          upstream: grok-build, reasoning_effort: medium }
+```
 
-String values support `${VAR}` interpolation, resolved against the environment **after** the YAML is
-parsed (so `${...}` inside comments is ignored). An unset referenced variable is a hard startup
-error printed as `path: message`. Because interpolation targets string values, use it for secrets
-like `api_key`; numeric fields such as `port` should be literals (or use `serve --port`).
+The left side is yours to name. A client that sends `"model": "fast"` gets routed by this table; the
+name has nothing to do with any upstream id, so you can call things whatever you like.
 
-## Client authentication and the loopback rule
+A few rules:
 
-`server.api_key` is compared in constant time. If `host` is not loopback (`127.0.0.0/8`, `::1`,
-`localhost`) the key is **required** — the server refuses to start without it, and `serve --host`
-re-checks the effective host. This is fail-closed: exposing the port beyond localhost always
-requires a key.
+- Names are matched exactly and are case-sensitive. A model that isn't listed comes back as a normal
+  OpenAI `model_not_found` 404 — llmgate won't guess for you.
+- Every `provider` you reference has to be enabled under `providers`, or the server won't start.
+- `reasoning_effort` is optional (`minimal`, `low`, `medium`, `high`). It sets the default for that
+  model when a request doesn't send one.
+
+Run `llmgate models` to print the table, or `llmgate models --remote` to also fetch the live upstream
+model ids. Grok's churn often, so it's worth checking before you pin one.
+
+## Server options
+
+| Key | Default | What it does |
+|---|---|---|
+| `server.host` | `127.0.0.1` | Address to bind. Anything but loopback requires `api_key`. |
+| `server.port` | `8787` | Port to bind. |
+| `server.api_key` | (unset) | Key clients send as `Authorization: Bearer …`. |
+| `server.request_timeout_ms` | `600000` | How long to wait on an upstream before giving up. |
+| `server.strict_params` | `false` | `true` rejects unsupported parameters with a 400 instead of ignoring them. |
+
+## Securing the port
+
+On loopback (`127.0.0.1`, `::1`, `localhost`) the API key is optional, since only you can reach the
+port. Bind anywhere else and `api_key` becomes required: llmgate refuses to start without it, so you
+can't leave an unauthenticated proxy to your subscriptions sitting on the network by accident.
+
+```yaml
+server:
+  host: 0.0.0.0
+  api_key: ${LLMGATE_API_KEY}
+```
+
+```bash
+export LLMGATE_API_KEY=$(openssl rand -hex 32)
+llmgate serve
+# clients then send:  Authorization: Bearer $LLMGATE_API_KEY
+```
+
+## Secrets with ${ENV}
+
+Any string value can reference an environment variable as `${VAR}`:
+
+```yaml
+server:
+  api_key: ${LLMGATE_API_KEY}
+```
+
+Substitution runs after the YAML is parsed, so a `${…}` sitting in a comment is harmless, and
+referencing a variable that isn't set is a startup error that names the exact path. Use it for
+secrets like `api_key`. Keep numbers like `port` as plain literals, or set them with `serve --port`.
 
 ## Environment variables
 
 | Variable | Purpose |
 |---|---|
-| `LLMGATE_HOME` | Config + auth-store directory (default `~/.llmgate`). |
-| `LLMGATE_API_KEY` | Conventional source for `server.api_key` via `${LLMGATE_API_KEY}`. |
-| `LOG_LEVEL` | `trace`…`error` (default `info`). Message bodies log only at `debug`. |
+| `LLMGATE_HOME` | Where config and credentials live (default `~/.llmgate`). |
+| `LLMGATE_API_KEY` | The usual source for `server.api_key`, referenced as `${LLMGATE_API_KEY}`. |
+| `LOG_LEVEL` | `trace` through `error` (default `info`). Request and response bodies log only at `debug`. |
 
 ## Files
 
-- `~/.llmgate/config.yaml` — this config.
-- `~/.llmgate/auth.json` — OAuth credentials (`0600`); independent of config. See [auth](./auth.md).
+- `~/.llmgate/config.yaml` — this file.
+- `~/.llmgate/auth.json` — your OAuth credentials, managed by `auth login`. See
+  [Authentication](./auth.md).
