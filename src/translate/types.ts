@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { ReasoningEffort } from '../config/schema'
 
 const TextContentPart = z.object({ type: z.literal('text'), text: z.string() })
 
@@ -69,3 +70,82 @@ export type ChatCompletionRequest = z.infer<typeof ChatCompletionRequestSchema>
 export type ChatMessage = z.infer<typeof Message>
 export type ChatContentPart = z.infer<typeof ContentPart>
 export type ChatToolCall = z.infer<typeof ToolCall>
+
+export type FinishReason = 'stop' | 'length' | 'tool_calls' | 'content_filter'
+
+export interface Usage {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+}
+
+export interface ResponseToolCall {
+  id: string
+  type: 'function'
+  function: { name: string; arguments: string }
+}
+
+export interface ChatCompletionResponse {
+  id: string
+  object: 'chat.completion'
+  created: number
+  model: string
+  choices: {
+    index: number
+    message: { role: 'assistant'; content: string | null; tool_calls?: ResponseToolCall[] }
+    finish_reason: FinishReason | null
+  }[]
+  usage?: Usage
+}
+
+export interface ChunkToolCall {
+  index: number
+  id?: string
+  type?: 'function'
+  function?: { name?: string; arguments?: string }
+}
+
+export interface ChatCompletionChunk {
+  id: string
+  object: 'chat.completion.chunk'
+  created: number
+  model: string
+  choices: {
+    index: number
+    delta: { role?: 'assistant'; content?: string; tool_calls?: ChunkToolCall[] }
+    finish_reason: FinishReason | null
+  }[]
+  usage?: Usage | null
+}
+
+// A parsed upstream Server-Sent Event.
+export interface SSEvent {
+  event?: string
+  data: string
+}
+
+// Per-request context threaded into the translator: the requested model is echoed back to the
+// client, conversationId pins the upstream prompt cache, includeUsage is captured from the original
+// request before sanitize strips stream_options.
+export interface TranslateContext {
+  requestedModel: string
+  upstreamModel: string
+  conversationId: string
+  includeUsage: boolean
+  reasoningEffort?: ReasoningEffort
+}
+
+// FORMAT-AGNOSTIC translator between Chat Completions and a provider's native wire format.
+// Because llmgate always streams upstream, fromUpstream consumes the event stream and aggregates
+// (rather than taking a pre-assembled body).
+export interface Translator {
+  toUpstream(request: ChatCompletionRequest, ctx: TranslateContext): unknown
+  fromUpstream(
+    events: AsyncIterable<SSEvent>,
+    ctx: TranslateContext,
+  ): Promise<ChatCompletionResponse>
+  streamToChunks(
+    events: AsyncIterable<SSEvent>,
+    ctx: TranslateContext,
+  ): AsyncIterable<ChatCompletionChunk>
+}

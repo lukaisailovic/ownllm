@@ -94,6 +94,12 @@ OAuth login inside a container has caveats (Codex uses a device code; Grok needs
 browser loopback). The simplest path is to run `llmgate auth login` on your host and
 mount `~/.llmgate` into the container. See `PLAN.md` §13.
 
+## Documentation
+
+See [`docs/`](./docs/) — [architecture](./docs/architecture.md), [adding a provider](./docs/providers.md),
+[translation](./docs/translation.md), [authentication](./docs/auth.md),
+[configuration](./docs/configuration.md), and the [HTTP API](./docs/api.md).
+
 ## Disclaimer
 
 This is a personal-use tool for accessing **your own** subscriptions

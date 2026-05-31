@@ -1,6 +1,8 @@
 import type { Hono } from 'hono'
+import { AuthError } from '../../src/auth/errors'
 import { parseConfig } from '../../src/config/load'
 import type { Config } from '../../src/config/schema'
+import { getProvider } from '../../src/providers/registry'
 import { type AppDeps, createApp } from '../../src/server/app'
 import type { AppEnv } from '../../src/server/types'
 
@@ -27,6 +29,10 @@ export function createTestApp(overrides: Partial<AppDeps> = {}): Hono<AppEnv> {
     config: testConfig(),
     startedAt: 1000,
     isReady: async () => true,
+    getProvider,
+    ensureCredential: async () => {
+      throw new AuthError('credential_missing', 'no test credential')
+    },
     ...overrides,
   })
 }

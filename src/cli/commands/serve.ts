@@ -1,10 +1,13 @@
 import { serve } from '@hono/node-server'
 import { defineCommand } from 'citty'
+import { authProviders } from '../../auth/auth-providers'
+import { RefreshManager } from '../../auth/refresh'
 import { openAuthStore } from '../../auth/store'
 import { loadConfigOrExit } from '../../config/load'
 import { isLoopbackHost } from '../../config/loopback'
 import { resolvePaths } from '../../config/paths'
 import { logger } from '../../logger'
+import { getProvider } from '../../providers/registry'
 import { createApp } from '../../server/app'
 import { makeReadinessCheck } from '../../server/readiness'
 
@@ -30,10 +33,13 @@ export const serveCommand = defineCommand({
     }
 
     const store = openAuthStore()
+    const refreshManager = new RefreshManager(store, authProviders)
     const app = createApp({
       config,
       startedAt: Math.floor(Date.now() / 1000),
       isReady: makeReadinessCheck(config, store),
+      getProvider,
+      ensureCredential: (providerId) => refreshManager.ensureFresh(providerId),
     })
     const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {
       logger.info({ host: info.address, port: info.port }, 'llmgate listening')

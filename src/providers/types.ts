@@ -1,4 +1,7 @@
 import type { Credential } from '../auth/credential'
+import type { UpstreamClient } from '../http/upstream-client'
+import type { LlmgateError } from '../translate/errors'
+import type { TranslateContext, Translator } from '../translate/types'
 
 export interface LoginContext {
   signal?: AbortSignal
@@ -12,4 +15,38 @@ export interface AuthProvider {
   login(ctx: LoginContext): Promise<Credential>
   refresh(credential: Credential): Promise<Credential>
   isExpired(credential: Credential): boolean
+}
+
+export interface ModelInfo {
+  id: string
+}
+
+export interface Capabilities {
+  stream: boolean
+  tools: boolean
+  vision: boolean
+  reasoning: boolean
+}
+
+// The transport owns everything about reaching one provider's upstream: where, with which headers,
+// host-pinning, provider-only body quirks, the HTTP client, and how to classify failures.
+export interface Transport {
+  hosts: string[]
+  endpoint(ctx: TranslateContext): string
+  headers(credential: Credential, ctx: TranslateContext): Record<string, string>
+  sanitizeBody?(body: unknown, ctx: TranslateContext): unknown
+  client(): UpstreamClient
+  classifyError(status: number, headers: Headers, body: string): LlmgateError
+}
+
+// A provider is one self-contained module: auth + translator + transport + capabilities + catalog.
+// Adding a provider means implementing this and registering it — no core edits. (PLAN §5.)
+export interface ProviderModule {
+  id: string
+  aliases?: string[]
+  auth: AuthProvider
+  translator: Translator
+  transport: Transport
+  capabilities: Capabilities
+  listModels(credential?: Credential): Promise<ModelInfo[]>
 }

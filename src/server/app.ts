@@ -1,9 +1,12 @@
 import { Hono } from 'hono'
+import type { Credential } from '../auth/credential'
 import type { Config } from '../config/schema'
 import { logger } from '../logger'
+import type { ProviderModule } from '../providers/types'
 import { LlmgateError, internalError } from '../translate/errors'
 import { clientAuth } from './middleware/clientAuth'
 import { requestId } from './middleware/requestId'
+import { registerChatRoutes } from './routes/chat-completions'
 import { registerHealthRoutes } from './routes/health'
 import { registerModelsRoutes } from './routes/models'
 import type { AppEnv } from './types'
@@ -12,6 +15,8 @@ export interface AppDeps {
   config: Config
   startedAt: number // epoch seconds; used as `created` in /v1/models
   isReady: () => Promise<boolean>
+  getProvider: (id: string) => ProviderModule | undefined
+  ensureCredential: (providerId: string) => Promise<Credential>
 }
 
 export function createApp(deps: AppDeps): Hono<AppEnv> {
@@ -30,6 +35,7 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
 
   app.use('/v1/*', clientAuth(deps.config.server.api_key))
   registerModelsRoutes(app, deps.config, deps.startedAt)
+  registerChatRoutes(app, deps)
 
   return app
 }
