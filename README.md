@@ -107,7 +107,7 @@ ownllm auth login <openai-codex|xai>     OAuth login, store the credential
 ownllm auth status                       validity, identity, expiry (tokens redacted)
 ownllm auth logout <provider>
 ownllm auth import openai-codex          reuse the official Codex CLI login (~/.codex); see the warning it prints
-ownllm models [--remote]                 print the routing table; --remote also lists upstream models
+ownllm models [--remote]                 routing table (what clients can request); --remote also lists each provider's live catalog
 ownllm doctor                            token health + Codex Cloudflare probe + xAI tier check
 ```
 
@@ -120,11 +120,17 @@ export OWNLLM_API_KEY=$(openssl rand -hex 32)
 docker compose up --build
 ```
 
-Logging in from inside a container works headless: Codex prints a device code, and Grok auto-detects
-the container and falls back to a paste-the-code flow (force it with `ownllm auth login xai
---manual`). Open the printed URL on any machine, approve, and paste the callback URL or code back.
-You can also log in on your host and mount `~/.ownllm` into the container. See
-[docs/configuration.md](./docs/configuration.md).
+Then log in straight into the running container — the image puts `ownllm` on `PATH`:
+
+```bash
+docker compose exec ownllm ownllm auth login openai-codex
+docker compose exec ownllm ownllm auth login xai
+```
+
+This works headless: Codex prints a device code, and Grok auto-detects the container and falls back
+to a paste-the-code flow (force it with `--manual`). Open the printed URL on any machine, approve,
+and paste the callback URL or code back. You can also log in on your host and mount `~/.ownllm` into
+the container instead. See [docs/configuration.md](./docs/configuration.md).
 
 ## When something breaks
 

@@ -9,6 +9,7 @@ import { logger } from '../../logger'
 import { getProvider } from '../../providers/registry'
 import { createApp } from '../../server/app'
 import { makeReadinessCheck } from '../../server/readiness'
+import { fail } from '../../util/term'
 
 const SHUTDOWN_GRACE_MS = 25_000
 
@@ -26,9 +27,7 @@ export const serveCommand = defineCommand({
     const port = args.port ? Number.parseInt(args.port, 10) : config.server.port
 
     if (!isLoopbackHost(host) && !config.server.api_key) {
-      process.stderr.write(
-        `refusing to start: host '${host}' is not loopback and server.api_key is not set\n`,
-      )
+      fail(`refusing to start: host '${host}' is not loopback and server.api_key is not set`)
       process.exit(1)
     }
 

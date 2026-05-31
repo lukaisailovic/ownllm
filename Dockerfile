@@ -37,6 +37,9 @@ RUN useradd --system --uid 10001 --create-home ownllm
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json config.example.yaml ./
+# Put the CLI on PATH so `docker exec <ctr> ownllm auth login <provider>` works (the bundle
+# already carries a shebang and is executable) instead of `node dist/main.js …`.
+RUN ln -s /app/dist/main.js /usr/local/bin/ownllm
 USER ownllm
 VOLUME ["/home/ownllm/.ownllm"]
 EXPOSE 8787

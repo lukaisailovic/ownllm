@@ -5,6 +5,7 @@ import { extractBaseTokens, postForm, readJsonBody } from '../../auth/oauth-http
 import { type Pkce, createPkce, randomToken } from '../../auth/pkce'
 import { canOpenBrowser, isRemoteSession } from '../../util/environment'
 import { getNumber, getString } from '../../util/json'
+import { style } from '../../util/term'
 import type { AuthProvider, LoginContext } from '../types'
 import { startLoopbackServer } from './loopback'
 
@@ -109,7 +110,7 @@ async function authorizeByLoopback(
   const server = await startLoopbackServer(XAI.loopbackPort, XAI.callbackPath)
   try {
     ctx.report(
-      `To authorize Grok, open this URL in your browser:\n  ${authorizeUrl}\nThis machine is waiting for the redirect. If your browser cannot reach it (remote/Docker), press Ctrl-C and re-run with --manual.`,
+      `To authorize Grok, open this URL in your browser:\n  ${style.cyan(authorizeUrl)}\nThis machine is waiting for the redirect. If your browser cannot reach it (remote/Docker), press Ctrl-C and re-run with --manual.`,
     )
 
     const result = await server.waitForCallback(ctx.signal)
@@ -127,7 +128,7 @@ async function authorizeByPaste(
   ctx: LoginContext,
 ): Promise<string> {
   ctx.report(
-    `To authorize Grok, open this URL in any browser:\n  ${authorizeUrl}\n\nAfter approving, your browser is redirected to a http://127.0.0.1 page that will not load — that's expected. Paste the full address from the address bar (or the code shown on the page).`,
+    `To authorize Grok, open this URL in any browser:\n  ${style.cyan(authorizeUrl)}\n\nAfter approving, your browser is redirected to a http://127.0.0.1 page that will not load — that's expected. Paste the full address from the address bar (or the code shown on the page).`,
   )
   const pasted = parsePastedCallback(await ctx.prompt('Paste the callback URL or code: '))
   if (pasted.error) throw new AuthError('login_failed', `authorization failed: ${pasted.error}`)

@@ -10,6 +10,7 @@ import {
 } from '../../auth/oauth-http'
 import { delay } from '../../util/async'
 import { asRecord, getNumber, getString } from '../../util/json'
+import { style } from '../../util/term'
 import type { AuthProvider, LoginContext } from '../types'
 
 // Codex (ChatGPT) device-code flow, per PLAN §9a. These are version-sensitive defaults.
@@ -48,7 +49,7 @@ class CodexAuthProvider implements AuthProvider {
   async login(ctx: LoginContext): Promise<Credential> {
     const device = await this.startDeviceAuth(ctx.signal)
     ctx.report(
-      `To authorize Codex, open this URL on any device:\n  ${CODEX.devicePageUrl}\nand enter the code: ${device.userCode}`,
+      `To authorize Codex, open this URL on any device:\n  ${style.cyan(CODEX.devicePageUrl)}\nand enter the code: ${style.bold(device.userCode)}`,
     )
     const grant = await this.pollForGrant(device, ctx)
     const tokens = await this.exchange(grant, ctx.signal)

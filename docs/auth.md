@@ -101,6 +101,14 @@ Tokens go in `~/.ownllm/auth.json`, owner-readable only (`0600`), kept apart fro
 `OWNLLM_HOME` to move that directory. To hand another machine a login (a container, say), copy that
 file across or mount the directory in — no second login needed.
 
+In Docker you can also just log in inside the running container; the image puts `ownllm` on `PATH`,
+and both flows above work headless:
+
+```bash
+docker compose exec ownllm ownllm auth login openai-codex
+docker compose exec ownllm ownllm auth login xai   # add --manual to force the paste flow
+```
+
 ## Troubleshooting
 
 | You see | What it means | What to do |

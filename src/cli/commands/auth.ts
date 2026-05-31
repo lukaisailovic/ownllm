@@ -10,6 +10,7 @@ import { type AuthStore, openAuthStore } from '../../auth/store'
 import { codexCredentialFromTokens } from '../../providers/codex/oauth'
 import type { AuthProvider } from '../../providers/types'
 import { asRecord } from '../../util/json'
+import { fail, out, style } from '../../util/term'
 
 const PROVIDER_ARG = {
   provider: { type: 'positional', description: 'Provider id (openai-codex | xai)', required: true },
@@ -18,7 +19,7 @@ const PROVIDER_ARG = {
 function resolveProvider(id: string): AuthProvider {
   const provider = getAuthProvider(id)
   if (provider) return provider
-  process.stderr.write(`unknown provider '${id}' (expected: ${authProviderIds().join(', ')})\n`)
+  fail(`unknown provider '${id}' (expected: ${authProviderIds().join(', ')})`)
   process.exit(1)
 }
 
@@ -46,7 +47,7 @@ const loginCommand = defineCommand({
         manual: args.manual === true,
       })
       await store.setCredential(provider.id, credential)
-      process.stdout.write(`logged in to ${provider.id}\n`)
+      out.status('ok', `logged in to ${provider.id}`)
     } catch (error) {
       exitWithAuthError(error)
     } finally {
@@ -61,12 +62,12 @@ const statusCommand = defineCommand({
     const store = openAuthStore()
     const ids = await store.listProviders()
     if (ids.length === 0) {
-      process.stdout.write('no stored credentials (run: ownllm auth login <provider>)\n')
+      out.status('info', 'no stored credentials — run: ownllm auth login <provider>')
       return
     }
-    for (const id of ids) {
-      process.stdout.write(await formatStatus(store, id))
-    }
+    const rows = [['PROVIDER', 'IDENTITY', 'TOKEN', 'EXPIRES', 'STATUS']]
+    for (const id of ids) rows.push(await statusRow(store, id))
+    out.table(rows, { head: true })
   },
 })
 
@@ -75,9 +76,11 @@ const logoutCommand = defineCommand({
   args: PROVIDER_ARG,
   async run({ args }) {
     const removed = await openAuthStore().removeCredential(args.provider)
-    process.stdout.write(
-      removed ? `logged out of ${args.provider}\n` : `no credential stored for ${args.provider}\n`,
-    )
+    if (removed) {
+      out.status('ok', `logged out of ${args.provider}`)
+      return
+    }
+    out.status('info', `no credential stored for ${args.provider}`)
   },
 })
 
@@ -86,7 +89,7 @@ const importCommand = defineCommand({
   args: PROVIDER_ARG,
   async run({ args }) {
     if (args.provider !== 'openai-codex') {
-      process.stderr.write(`import is only supported for openai-codex (got '${args.provider}')\n`)
+      fail(`import is only supported for openai-codex (got '${args.provider}')`)
       process.exit(1)
     }
     process.stderr.write(
@@ -94,7 +97,7 @@ const importCommand = defineCommand({
         'shared token and can revoke BOTH credentials. Prefer `ownllm auth login openai-codex`.\n',
     )
     await openAuthStore().setCredential('openai-codex', readCodexCredentialOrExit())
-    process.stdout.write('imported openai-codex credential\n')
+    out.status('ok', 'imported openai-codex credential')
   },
 })
 
@@ -104,18 +107,18 @@ function readCodexCredentialOrExit(): Credential {
   try {
     parsed = JSON.parse(readFileSync(file, 'utf8'))
   } catch {
-    process.stderr.write(`could not read ${file}; is the Codex CLI logged in?\n`)
+    fail(`could not read ${file}; is the Codex CLI logged in?`)
     process.exit(1)
   }
   const tokens = asRecord(asRecord(parsed)?.tokens) ?? asRecord(parsed)
   if (!tokens) {
-    process.stderr.write(`no tokens found in ${file}\n`)
+    fail(`no tokens found in ${file}`)
     process.exit(1)
   }
   try {
     return codexCredentialFromTokens(tokens)
   } catch (error) {
-    process.stderr.write(`failed to import: ${(error as Error).message}\n`)
+    fail(`failed to import: ${(error as Error).message}`)
     process.exit(1)
   }
 }
@@ -130,17 +133,17 @@ export const authCommand = defineCommand({
   },
 })
 
-async function formatStatus(store: AuthStore, id: string): Promise<string> {
+async function statusRow(store: AuthStore, id: string): Promise<string[]> {
   const credential = await store.getCredential(id)
-  if (!credential) return `${id}: (missing)\n`
+  if (!credential) return [id, '-', '-', '-', style.dim('missing')]
 
   const provider = getAuthProvider(id)
   const summary = credential.summary()
   const expired = provider ? provider.isExpired(credential) : summary.expired
   const identity = summary.email ?? summary.account_id ?? '-'
   const expiry = new Date(summary.expires_at * 1000).toISOString()
-  const state = expired ? 'EXPIRED' : 'valid'
-  return `${id}: ${state}  identity=${identity}  token=…${summary.access_token_last4}  expires=${expiry}\n`
+  const state = expired ? style.red('EXPIRED') : style.green('valid')
+  return [id, identity, `…${summary.access_token_last4}`, expiry, state]
 }
 
 async function promptLine(message: string, signal: AbortSignal): Promise<string> {
@@ -155,11 +158,11 @@ async function promptLine(message: string, signal: AbortSignal): Promise<string>
 function exitWithAuthError(error: unknown): never {
   if (error instanceof AuthError) {
     const hint = error.code === 'login_cancelled' ? '' : ` (${error.code})`
-    process.stderr.write(`login failed${hint}: ${error.message}\n`)
+    fail(`login failed${hint}: ${error.message}`)
     process.exit(1)
   }
   if (error instanceof Error && error.name === 'AbortError') {
-    process.stderr.write('login cancelled\n')
+    fail('login cancelled')
     process.exit(1)
   }
   throw error

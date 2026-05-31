@@ -44,8 +44,16 @@ A few rules:
 - `reasoning_effort` is optional (`minimal`, `low`, `medium`, `high`). It sets the default for that
   model when a request doesn't send one.
 
-Run `ownllm models` to print the table, or `ownllm models --remote` to also fetch the live upstream
-model ids. Grok's churn often, so it's worth checking before you pin one.
+`ownllm models` shows two different things, and it's worth keeping them straight:
+
+- **The routing table** (always) — the aliases above: the names a client is allowed to send.
+- **The upstream catalog** (`--remote`) — what each provider actually offers, so you know what to put
+  on the right-hand `upstream` side. For xAI this is a *live* call against your own subscription, so
+  it mirrors your tier; for Codex it's the known-good set (`gpt-5`, `gpt-5-codex`).
+
+The catalog is the one to trust when you pin an `upstream`. A model missing from it may still answer
+— xAI tolerates some legacy slugs (`grok-3-mini`, say) — but it isn't supported on your tier and is
+often the slow path. Grok's names churn week to week, so re-check `--remote` whenever one misbehaves.
 
 ## Server options
 

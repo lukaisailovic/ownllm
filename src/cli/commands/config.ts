@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { defineCommand } from 'citty'
 import { resolvePaths } from '../../config/paths'
 import { DEFAULT_CONFIG_YAML } from '../../config/template'
+import { fail, out, style } from '../../util/term'
 
 const configInitCommand = defineCommand({
   meta: { name: 'init', description: 'Write a starter config file' },
@@ -16,13 +17,14 @@ const configInitCommand = defineCommand({
       writeFileSync(configFile, DEFAULT_CONFIG_YAML, { flag: args.force ? 'w' : 'wx' })
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-        process.stderr.write(`config already exists: ${configFile} (use --force to overwrite)\n`)
+        fail(`config already exists: ${configFile} (use --force to overwrite)`)
         process.exit(1)
       }
       throw error
     }
 
-    process.stdout.write(`wrote ${configFile}\nconfig dir: ${configDir}\n`)
+    out.status('ok', `wrote ${configFile}`)
+    out.line(style.dim(`  config dir: ${configDir}`))
   },
 })
 
