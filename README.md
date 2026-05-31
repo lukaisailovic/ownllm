@@ -1,115 +1,172 @@
 # llmgate
 
-A self-hostable, OpenAI-compatible API server that runs on your **LLM subscriptions**
-instead of API keys.
-
-Point any OpenAI-compatible client at llmgate, and it routes each request — by the
-requested `model` — to a backend driven by **subscription OAuth**:
+llmgate is an OpenAI-compatible API server that runs on your LLM **subscriptions** instead of API
+keys. Point any OpenAI client at it, and it routes each request by the requested `model` to a
+backend you've logged into over OAuth:
 
 - **ChatGPT / Codex** (`openai-codex`)
 - **xAI Grok Build / SuperGrok** (`xai`)
 
-Both backends speak the OpenAI Responses API under the hood; llmgate translates
-Chat Completions ⇄ Responses so your existing tooling works unchanged.
+Both providers actually speak the OpenAI Responses API, so llmgate translates between Chat
+Completions and Responses for you. Your existing tooling keeps working, streaming and tool calls
+included, and token usage passes straight through.
 
-## Why
+## Why this exists
 
-Key-based gateways (LiteLLM and friends) can't use a ChatGPT or SuperGrok
-*subscription* — those are OAuth, not API keys. Per-model gateways that do speak
-OAuth (e.g. Hermes) pin a single model per server; the request's `model` field is
-cosmetic. llmgate does **real per-request routing**: a YAML table maps each
-requested model to `{provider, upstreamModel}`, and unknown models return a proper
-OpenAI `model_not_found` 404.
+Key-based gateways like LiteLLM can't touch a ChatGPT or SuperGrok subscription, because those are
+OAuth logins, not API keys. The gateways that *do* speak that OAuth (Hermes, for example) pin a
+single model per server, so the request's `model` field is cosmetic.
 
-## Status
-
-The full pipeline is implemented: OAuth login for both providers, the OpenAI-compatible server
-(`/v1/chat/completions` + `/v1/models`), Chat Completions ⇄ Responses translation (streaming and
-non-streaming, tools, usage), per-request routing, reactive token refresh, and the `auth`/`doctor`/
-`models` tooling. The one thing only you can verify is live reachability against your own
-subscriptions — run `llmgate doctor`. See `PLAN.md` for the milestone history.
+llmgate routes per request. A YAML table maps each model name you expose to a `{provider, upstream}`
+pair, and a model that isn't in the table gets a normal OpenAI `model_not_found` 404. So one server
+can serve `gpt-5` and `grok` side by side.
 
 ## Requirements
 
-- Node.js >= 22
-- pnpm (via corepack)
+- Node.js 22 or newer
+- pnpm (run `corepack enable` if you don't have it)
+
+## Install
+
+```bash
+git clone <this-repo> && cd llmgate
+pnpm install
+pnpm build          # builds dist/main.js, the `llmgate` CLI
+```
+
+The examples below assume an alias:
+
+```bash
+alias llmgate="node $(pwd)/dist/main.js"
+```
+
+(Or `pnpm link --global` to put `llmgate` on your PATH. While hacking on the code, `pnpm dev -- serve`
+runs the CLI through `tsx` with no build step.)
 
 ## Quickstart
 
 ```bash
-pnpm install
-pnpm build
-
-# create ~/.llmgate/config.yaml
-node dist/main.js config init
-
-# start the server (loopback by default — no api_key needed)
-node dist/main.js serve
-curl http://127.0.0.1:8787/health
+llmgate config init                 # writes ~/.llmgate/config.yaml
+llmgate auth login openai-codex     # device code; prints a URL to open
+llmgate auth login xai              # opens a browser for the loopback flow
+llmgate doctor                      # checks token health + reachability before you rely on it
+llmgate serve                       # binds 127.0.0.1:8787; no client key needed on loopback
 ```
 
-During development, `pnpm dev` runs the CLI under `tsx` with watch mode.
+Now call it like any OpenAI endpoint:
+
+```bash
+curl http://127.0.0.1:8787/v1/chat/completions \
+  -H "content-type: application/json" \
+  -d '{"model":"gpt-5","messages":[{"role":"user","content":"hello"}]}'
+```
+
+```python
+from openai import OpenAI
+
+# Loopback needs no key, but the SDK insists on a non-empty string.
+client = OpenAI(base_url="http://127.0.0.1:8787/v1", api_key="local")
+reply = client.chat.completions.create(
+    model="grok",
+    messages=[{"role": "user", "content": "hi"}],
+)
+print(reply.choices[0].message.content)
+```
+
+`gpt-5` and `grok` here are names from your routing table, not upstream model ids. Rename them,
+point them wherever you want, and run `llmgate models` to see the table. Add `--remote` to fetch the
+live upstream names (Grok Build's churn often, so it's worth checking).
 
 ## Configuration
 
-Config lives at `~/.llmgate/config.yaml` (override the directory with
-`LLMGATE_HOME`). See [`config.example.yaml`](./config.example.yaml). Values support
-`${ENV_VAR}` interpolation; an unset referenced variable is a hard startup error.
-
-The routing table is the core of llmgate:
+The config lives at `~/.llmgate/config.yaml`. Override the directory with `LLMGATE_HOME`, or pass
+`serve --config <path>`. There's a commented reference in
+[`config.example.yaml`](./config.example.yaml), and more detail in
+[docs/configuration.md](./docs/configuration.md).
 
 ```yaml
-models:
+server:
+  host: 127.0.0.1            # a non-loopback host requires api_key, or the server won't start
+  port: 8787
+  # api_key: ${LLMGATE_API_KEY}   # client auth (timing-safe); uncomment to require it
+  request_timeout_ms: 600000
+  strict_params: false        # true rejects unsupported params with 400 instead of ignoring them
+providers:
+  openai-codex: { enabled: true }
+  xai:          { enabled: true }
+models:                       # the routing table: requested model -> upstream provider + model
   gpt-5:  { provider: openai-codex, upstream: gpt-5 }
   grok:   { provider: xai,          upstream: grok-build, reasoning_effort: medium }
 ```
 
-### Client authentication
+The `models` table is the whole point of llmgate. Model names are matched exactly and
+case-sensitively. String values support `${ENV_VAR}` interpolation (resolved after the YAML parses,
+so it's safe to use in comments), and a referenced variable that isn't set is a hard startup error.
 
-Requests are authenticated with `server.api_key`, compared in constant time. If
-`server.host` is **not** loopback, an `api_key` is **required** — the server refuses
-to start without one. This is fail-closed by design.
+### Going beyond localhost
+
+On loopback the client key is optional. The moment you bind anywhere else it becomes mandatory, and
+the server refuses to start without it. That's deliberate, so you can't accidentally expose an
+unauthenticated proxy to your subscriptions.
+
+```bash
+export LLMGATE_API_KEY=$(openssl rand -hex 32)   # referenced as ${LLMGATE_API_KEY} in config
+llmgate serve --host 0.0.0.0
+# clients then send:  Authorization: Bearer $LLMGATE_API_KEY
+```
 
 ## CLI
 
 ```
-llmgate config init                  # write a starter config
-llmgate serve [--config] [--host] [--port]
-llmgate auth login <openai-codex|xai>
-llmgate auth status
+llmgate config init                       write a starter config
+llmgate serve [--config p] [--host h] [--port n]
+llmgate auth login <openai-codex|xai>     OAuth login, store the credential
+llmgate auth status                       validity, identity, expiry (tokens redacted)
 llmgate auth logout <provider>
-llmgate auth import openai-codex
-llmgate models [--remote]
-llmgate doctor
+llmgate auth import openai-codex          reuse the official Codex CLI login (~/.codex); see the warning it prints
+llmgate models [--remote]                 print the routing table; --remote also lists upstream models
+llmgate doctor                            token health + Codex Cloudflare probe + xAI tier check
 ```
 
 ## Docker
 
-The container binds beyond loopback, so it requires a client key:
+The container binds beyond loopback, so it needs a client key:
 
 ```bash
 export LLMGATE_API_KEY=$(openssl rand -hex 32)
 docker compose up --build
 ```
 
-OAuth login inside a container has caveats (Codex uses a device code; Grok needs a
-browser loopback). The simplest path is to run `llmgate auth login` on your host and
-mount `~/.llmgate` into the container. See `PLAN.md` §13.
+Logging in from inside a container is awkward: Codex prints a device code, but Grok wants a browser
+on a loopback port. The path of least resistance is to run `llmgate auth login` on your host and
+mount `~/.llmgate` into the container. See [docs/configuration.md](./docs/configuration.md).
+
+## When something breaks
+
+Start with `llmgate doctor`. The errors you're most likely to hit:
+
+- **`codex_cloudflare_blocked` (502)**: `chatgpt.com` sits behind Cloudflare, and your request got
+  challenged. This happens most on datacenter and Docker IPs; a residential or home-server IP
+  usually sails through. It's a transport block, not a bad token.
+- **`xai_tier_denied` (403)**: your xAI account isn't allowlisted for programmatic access. Logging
+  in again won't change it; it's a tier gate on xAI's side.
+- **`credential_expired` (401)**: run `llmgate auth login <provider>` again.
+- **`model_not_found` (404)**: the model isn't in your `models` table. Check `llmgate models`.
 
 ## Documentation
 
-See [`docs/`](./docs/) — [architecture](./docs/architecture.md), [adding a provider](./docs/providers.md),
-[translation](./docs/translation.md), [authentication](./docs/auth.md),
-[configuration](./docs/configuration.md), and the [HTTP API](./docs/api.md).
+The [`docs/`](./docs/) folder covers [architecture](./docs/architecture.md),
+[adding a provider](./docs/providers.md), [translation](./docs/translation.md),
+[authentication](./docs/auth.md), [configuration](./docs/configuration.md), and the
+[HTTP API](./docs/api.md). Working on llmgate with an AI agent? Read [AGENTS.md](./AGENTS.md).
 
 ## Disclaimer
 
-This is a personal-use tool for accessing **your own** subscriptions
-programmatically. It is not affiliated with, endorsed by, or supported by OpenAI or
-xAI. Subscription terms differ from platform/API terms and can change without notice;
-xAI's programmatic access is tier-gated and may not be available on your account.
-**You are responsible for ensuring your use complies with each provider's terms.**
-Do not use llmgate for multi-tenant or resale scenarios.
+This is a personal-use tool for reaching **your own** subscriptions programmatically. It isn't
+affiliated with or endorsed by OpenAI or xAI. Subscription terms aren't the same as platform or API
+terms and can change without notice, and xAI gates programmatic access by tier, so it may not work
+on your account at all. Complying with each provider's terms is on you. Don't run llmgate as a
+multi-tenant service or resell access to it.
 
 ## License
 
