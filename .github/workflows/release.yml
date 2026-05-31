@@ -1,0 +1,24 @@
+name: Release
+
+# Skeleton only. P6 wires npm + GHCR publishing (semantic-release, docker buildx multi-arch).
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+      # TODO(P6): publish to npm and build/push multi-arch image to GHCR.

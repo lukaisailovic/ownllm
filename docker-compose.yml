@@ -1,0 +1,18 @@
+services:
+  llmgate:
+    build: .
+    image: llmgate:local
+    ports:
+      - "8787:8787"
+    environment:
+      # Required: the container binds beyond loopback, so a client api_key is mandatory.
+      LLMGATE_API_KEY: ${LLMGATE_API_KEY:?set LLMGATE_API_KEY in your environment}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # Persist config + OAuth tokens. Run 'llmgate auth login' on the host (Grok needs a
+      # browser loopback) and mount the same dir, or 'llmgate config init' inside the volume.
+      - llmgate-config:/home/llmgate/.llmgate
+    restart: unless-stopped
+
+volumes:
+  llmgate-config:
