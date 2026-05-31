@@ -62,6 +62,20 @@ There is no conversation store. The client resends history each turn. llmgate de
 turn), so the upstream prompt cache hits across turns instead of missing on a random id. See
 [translation](./translation.md#conversation-id).
 
+## Reliability
+
+- **Retry-once on 401:** if the upstream returns 401 before the first byte, the route refreshes the
+  credential reactively (single-flight + a 10s min-interval guard) and retries exactly once. A
+  second 401 surfaces as `credential_expired`. 403 and 429 are never retried.
+- **Mid-stream failure:** once streaming has begun, no OpenAI error object can be sent, so the route
+  emits a finish chunk and exactly one `[DONE]`, logs the failure, and does not retry.
+- **Timeouts + disconnect:** each request has an `AbortController` driven by `request_timeout_ms`
+  and the client connection signal, so a timeout or client disconnect aborts the upstream fetch.
+- **Graceful shutdown:** SIGTERM/SIGINT stop accepting connections and drain in-flight streams, with
+  a 25s grace period before a forced exit.
+- **Logging:** `pino` with redaction; an access log per `/v1` request plus a request-error log via
+  `onError`. Message bodies log only at `debug`.
+
 ## Security posture
 
 - Client requests require `server.api_key` unless bound to loopback; a non-loopback bind without a

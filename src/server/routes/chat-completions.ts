@@ -1,11 +1,12 @@
 import type { Context } from 'hono'
 import { streamSSE } from 'hono/streaming'
+import type { Credential } from '../../auth/credential'
 import { AuthError } from '../../auth/errors'
 import { parseSSE } from '../../http/sse'
 import { logger } from '../../logger'
 import { resolveModel } from '../../router/resolve'
 import {
-  type LlmgateError,
+  LlmgateError,
   credentialExpired,
   invalidRequestBody,
   modelNotFound,
@@ -48,7 +49,7 @@ async function handleChatCompletion(c: Context<AppEnv>, deps: AppDeps): Promise<
   const provider = route && deps.getProvider(route.providerId)
   if (!route || !provider) throw modelNotFound(request.model)
 
-  const credential = await ensureCredential(deps, route.providerId)
+  let credential = await withMappedAuthErrors(() => deps.ensureCredential(route.providerId))
 
   const ctx: TranslateContext = {
     requestedModel: request.model,
@@ -66,16 +67,26 @@ async function handleChatCompletion(c: Context<AppEnv>, deps: AppDeps): Promise<
   // Client disconnect aborts the upstream fetch -> stops quota burn and socket leaks (PLAN §12).
   c.req.raw.signal.addEventListener('abort', () => controller.abort(), { once: true })
 
-  let upstream: Response
-  try {
-    upstream = await provider.transport.client().fetch(provider.transport.endpoint(ctx), {
+  const send = (cred: Credential) =>
+    provider.transport.client().fetch(provider.transport.endpoint(ctx), {
       method: 'POST',
-      headers: provider.transport.headers(credential, ctx),
+      headers: provider.transport.headers(cred, ctx),
       body: JSON.stringify(body),
       signal: controller.signal,
     })
+
+  let upstream: Response
+  try {
+    upstream = await send(credential)
+    // Reactive retry-once on a refresh-worthy 401, strictly pre-first-byte (PLAN §5/§7). The
+    // refresh is single-flight with a 10s min-interval guard, so it cannot spin or burn rotations.
+    if (upstream.status === 401) {
+      credential = await withMappedAuthErrors(() => deps.refreshAfterUnauthorized(route.providerId))
+      upstream = await send(credential)
+    }
   } catch (error) {
     clearTimeout(timeout)
+    if (error instanceof LlmgateError) throw error
     throw upstreamError(`upstream request failed: ${errorMessage(error)}`)
   }
 
@@ -112,9 +123,10 @@ async function handleChatCompletion(c: Context<AppEnv>, deps: AppDeps): Promise<
   }
 }
 
-async function ensureCredential(deps: AppDeps, providerId: string) {
+// Translates auth-layer failures into the HTTP error contract (PLAN §11).
+async function withMappedAuthErrors(load: () => Promise<Credential>): Promise<Credential> {
   try {
-    return await deps.ensureCredential(providerId)
+    return await load()
   } catch (error) {
     if (error instanceof AuthError) throw mapAuthError(error)
     throw error

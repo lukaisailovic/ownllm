@@ -11,6 +11,8 @@ import { getProvider } from '../../providers/registry'
 import { createApp } from '../../server/app'
 import { makeReadinessCheck } from '../../server/readiness'
 
+const SHUTDOWN_GRACE_MS = 25_000
+
 export const serveCommand = defineCommand({
   meta: { name: 'serve', description: 'Start the API server' },
   args: {
@@ -40,14 +42,24 @@ export const serveCommand = defineCommand({
       isReady: makeReadinessCheck(config, store),
       getProvider,
       ensureCredential: (providerId) => refreshManager.ensureFresh(providerId),
+      refreshAfterUnauthorized: (providerId) => refreshManager.refreshAfterUnauthorized(providerId),
     })
     const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {
       logger.info({ host: info.address, port: info.port }, 'llmgate listening')
     })
 
+    // Stop accepting, drain in-flight streams, then exit — or force-exit after the grace period.
     const shutdown = (signal: NodeJS.Signals) => {
       logger.info({ signal }, 'shutting down')
-      server.close(() => process.exit(0))
+      const force = setTimeout(() => {
+        logger.warn('grace period elapsed; forcing exit')
+        process.exit(1)
+      }, SHUTDOWN_GRACE_MS)
+      force.unref()
+      server.close(() => {
+        clearTimeout(force)
+        process.exit(0)
+      })
     }
     process.on('SIGTERM', () => shutdown('SIGTERM'))
     process.on('SIGINT', () => shutdown('SIGINT'))

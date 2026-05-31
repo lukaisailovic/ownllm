@@ -33,6 +33,9 @@ export function createTestApp(overrides: Partial<AppDeps> = {}): Hono<AppEnv> {
     ensureCredential: async () => {
       throw new AuthError('credential_missing', 'no test credential')
     },
+    refreshAfterUnauthorized: async () => {
+      throw new AuthError('credential_missing', 'no test credential')
+    },
     ...overrides,
   })
 }

@@ -1,57 +1,14 @@
 import { serve } from '@hono/node-server'
 import OpenAI from 'openai'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Credential } from '../../src/auth/credential'
-import type { AuthProvider, ProviderModule } from '../../src/providers/types'
-import { upstreamError } from '../../src/translate/errors'
-import { responsesTranslator } from '../../src/translate/responses'
 import { createTestApp } from '../support/app'
+import { fakeModule, sseResponse, testCredential } from '../support/fake-provider'
 import { INTERLEAVED_EVENTS, sseText } from '../support/responses'
-
-const stubAuth: AuthProvider = {
-  id: 'openai-codex',
-  login: async () => {
-    throw new Error('unused')
-  },
-  refresh: async () => {
-    throw new Error('unused')
-  },
-  isExpired: () => false,
-}
-
-// Real translator + fake transport returning canned Responses SSE: exercises the full route and the
-// translation pipeline end-to-end through the official SDK, with a controllable upstream.
-function fakeModule(sse: string): ProviderModule {
-  return {
-    id: 'openai-codex',
-    auth: stubAuth,
-    translator: responsesTranslator,
-    transport: {
-      hosts: ['test.local'],
-      endpoint: () => 'https://test.local/responses',
-      headers: () => ({}),
-      client: () => ({
-        fetch: async () =>
-          new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
-      }),
-      classifyError: (status) => upstreamError(`status ${status}`),
-    },
-    capabilities: { stream: true, tools: true, vision: true, reasoning: true },
-    listModels: async () => [],
-  }
-}
-
-const credential = new Credential({
-  type: 'oauth',
-  access_token: 'AT',
-  refresh_token: 'RT',
-  expires_at: 9_999_999_999,
-})
 
 async function startServer(sse: string): Promise<{ baseURL: string; close: () => void }> {
   const app = createTestApp({
-    getProvider: () => fakeModule(sse),
-    ensureCredential: async () => credential,
+    getProvider: () => fakeModule(async () => sseResponse(sse)),
+    ensureCredential: async () => testCredential,
   })
   return new Promise((resolve) => {
     const server = serve({ fetch: app.fetch, port: 0, hostname: '127.0.0.1' }, (info) => {
