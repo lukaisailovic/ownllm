@@ -13,7 +13,11 @@ import { asRecord } from '../../util/json'
 import { fail, out, style } from '../../util/term'
 
 const PROVIDER_ARG = {
-  provider: { type: 'positional', description: 'Provider id (openai-codex | xai)', required: true },
+  provider: {
+    type: 'positional',
+    description: `Provider id (${authProviderIds().join(' | ')})`,
+    required: true,
+  },
 } as const
 
 function resolveProvider(id: string): AuthProvider {

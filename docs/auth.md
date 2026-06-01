@@ -4,12 +4,16 @@ ownllm reaches each provider through your subscription login instead of an API k
 per provider, ownllm stores the OAuth tokens under `~/.ownllm/`, and from then on it refreshes them
 for you.
 
-Two providers are supported:
+Six providers are supported:
 
 | Provider | Subscription | Login id |
 |---|---|---|
 | ChatGPT / Codex | ChatGPT Plus, Pro, or Business | `openai-codex` |
 | xAI Grok | Grok or SuperGrok | `xai` |
+| GitHub Copilot | Copilot Pro/Business (or a Copilot-enabled GitHub plan) | `copilot` |
+| Qwen | A qwen.ai account | `qwen` |
+| MiniMax | A MiniMax account | `minimax` |
+| Google Gemini | A Google account with Cloud Code Assist (Gemini free or paid) | `gemini` |
 
 ## Logging in
 
@@ -60,6 +64,20 @@ The paste flow is three steps:
 One thing worth knowing up front: xAI only grants programmatic access to certain subscription tiers.
 If login succeeds but your requests come back as `xai_tier_denied`, the account isn't entitled, and
 logging in again won't change that. See [troubleshooting](#troubleshooting).
+
+### Copilot, Qwen, MiniMax
+
+All three use a code flow, like Codex: `ownllm auth login <copilot|qwen|minimax>` prints a URL and a
+short code, you open the URL on any device (your phone works), approve, and the terminal finishes on
+its own. Copilot logs in through GitHub and then exchanges that for a Copilot API token behind the
+scenes; nothing about the flow changes for you. These work the same headless as on a desktop.
+
+### Google Gemini
+
+`ownllm auth login gemini` uses the same paste flow as xAI's `--manual`: it prints a Google sign-in
+URL, you approve, and Google redirects to a `http://localhost:…` page that won't load — paste that
+address (or just the code) back into the terminal. At login ownllm also resolves your Cloud Code
+Assist project (provisioning one on the free tier); set `GOOGLE_CLOUD_PROJECT` to pin a specific one.
 
 ## Checking what's stored
 

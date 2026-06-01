@@ -1,4 +1,8 @@
 import { codexModule } from './codex/module'
+import { copilotModule } from './copilot/module'
+import { geminiModule } from './gemini/module'
+import { minimaxModule } from './minimax/module'
+import { qwenModule } from './qwen/module'
 import type { ProviderModule } from './types'
 import { xaiModule } from './xai/module'
 
@@ -20,4 +24,8 @@ export function listProviderModules(): ProviderModule[] {
 }
 
 registerProvider(codexModule)
+registerProvider(copilotModule)
+registerProvider(geminiModule)
+registerProvider(minimaxModule)
+registerProvider(qwenModule)
 registerProvider(xaiModule)

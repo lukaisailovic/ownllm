@@ -11,7 +11,8 @@ export const modelsCommand = defineCommand({
     config: { type: 'string', description: 'Path to config file' },
     remote: {
       type: 'boolean',
-      description: 'Also ask each provider which models your subscription offers (live for xAI)',
+      description:
+        'Also ask each provider which models your subscription offers (live where supported)',
     },
   },
   async run({ args }) {

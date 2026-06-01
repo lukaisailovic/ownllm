@@ -3,6 +3,7 @@ import { AuthError, classifyTokenError } from './errors'
 
 interface RequestOptions {
   signal?: AbortSignal
+  headers?: Record<string, string>
 }
 
 export function postJson(url: string, body: unknown, opts: RequestOptions = {}): Promise<Response> {
@@ -21,7 +22,11 @@ export function postForm(
 ): Promise<Response> {
   return fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      accept: 'application/json',
+      ...opts.headers,
+    },
     body: new URLSearchParams(params).toString(),
     signal: opts.signal,
   })
