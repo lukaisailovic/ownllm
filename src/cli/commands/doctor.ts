@@ -2,13 +2,13 @@ import { defineCommand } from 'citty'
 import type { Credential } from '../../auth/credential'
 import { openAuthStore } from '../../auth/store'
 import { loadConfigForCli } from '../../config/load'
-import { getProvider } from '../../providers/registry'
+import { getProvider, listProviderModules } from '../../providers/registry'
 import type { ProviderModule } from '../../providers/types'
 import { parseModelList } from '../../providers/xai/models'
 import type { TranslateContext } from '../../translate/types'
 import { type StatusKind, out, style } from '../../util/term'
 
-const PROVIDER_IDS = ['openai-codex', 'xai'] as const
+const PROVIDER_IDS = listProviderModules().map((module) => module.id)
 const PROBE_TIMEOUT_MS = 10_000
 
 interface Check {
@@ -47,9 +47,19 @@ async function diagnose(id: string, credential: Credential | undefined): Promise
     text: `credential ${expired ? 'EXPIRED' : 'valid'} ${style.dim(`· expires ${expiry}`)}`,
   }
 
-  const probe =
-    id === 'openai-codex' ? await probeCodex(provider, credential) : await probeXai(credential)
-  return [credentialCheck, ...probe]
+  return [credentialCheck, ...(await probe(id, provider, credential))]
+}
+
+// Bespoke reachability probes where a provider has a documented failure mode worth surfacing
+// (Codex Cloudflare blocks, xAI tier gating); other providers report credential validity only.
+async function probe(
+  id: string,
+  provider: ProviderModule,
+  credential: Credential,
+): Promise<Check[]> {
+  if (id === 'openai-codex') return probeCodex(provider, credential)
+  if (id === 'xai') return probeXai(credential)
+  return []
 }
 
 // Sends an intentionally minimal body: past Cloudflare the API answers 400, while a CF challenge

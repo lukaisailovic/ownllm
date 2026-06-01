@@ -10,10 +10,11 @@ export interface CredentialData {
   expires_at: number
   last_refresh?: string
   account_id?: string // codex
-  auth_mode?: string // codex
+  auth_mode?: string // codex, copilot
   sub?: string // xai
   email?: string // xai
   token_endpoint?: string // xai
+  project_id?: string // gemini (Cloud Code Assist project)
 }
 
 export interface CredentialSummary {
@@ -66,6 +67,9 @@ export class Credential {
   }
   get tokenEndpoint(): string | undefined {
     return this.data.token_endpoint
+  }
+  get projectId(): string | undefined {
+    return this.data.project_id
   }
 
   isExpired(skewSeconds: number, now = nowSeconds()): boolean {

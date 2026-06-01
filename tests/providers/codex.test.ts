@@ -50,7 +50,10 @@ describe('codex provider', () => {
   })
 
   it('adds store:false in sanitizeBody', () => {
-    expect(codexTransport.sanitizeBody?.({ input: [] }, ctx())).toEqual({ input: [], store: false })
+    expect(codexTransport.sanitizeBody?.({ input: [] }, ctx(), credential)).toEqual({
+      input: [],
+      store: false,
+    })
   })
 })
 

@@ -36,10 +36,11 @@ interface Translator {
 }
 ```
 
-If your provider speaks the OpenAI Responses API (Codex and xAI both do), reuse the shared
-`responsesTranslator` from [`src/translate/responses`](../src/translate/responses/index.ts). If it
-speaks Chat Completions, Anthropic Messages, or Gemini, add a new `translate/<format>/`
-implementation — the router and server don't change.
+ownllm ships four translators under [`src/translate/`](../src/translate): `responses` (Codex, xAI),
+`chat` (Copilot, Qwen), `anthropic` (MiniMax), and `gemini` (Google Cloud Code Assist). Reuse the
+one that matches your provider's wire format; for a brand-new format, add a `translate/<format>/`
+implementation — the router and server don't change. They all share the format-agnostic helpers in
+[`src/translate/wire.ts`](../src/translate/wire.ts).
 
 ## 3. Transport
 
@@ -50,7 +51,7 @@ interface Transport {
   hosts: string[]                                  // allowlist; the client refuses other hosts
   endpoint(ctx: TranslateContext): string
   headers(cred: Credential, ctx): Record<string, string>
-  sanitizeBody?(body: unknown, ctx): unknown       // provider quirks ONLY
+  sanitizeBody?(body, ctx, cred): unknown          // provider quirks ONLY (cred for per-account fields)
   client(): UpstreamClient                         // plain | cookie-jar | (future) TLS-impersonation
   classifyError(status, headers, body): OwnllmError
 }
@@ -83,7 +84,14 @@ models:
 ```
 
 The `providers` block is an open record keyed by id (not a closed enum), so a new id needs no schema
-change. Two worked examples both reuse the shared Responses translator and differ only in auth +
-transport: [`src/providers/codex`](../src/providers/codex) (device-code auth, Cloudflare-aware
-transport, cookie jar) and [`src/providers/xai`](../src/providers/xai) (loopback auth,
-`x-grok-conv-id`, a `sanitize.ts` of provider quirks, live model discovery, `403 → xai_tier_denied`).
+change. Worked examples, by wire format:
+
+- **Responses** — [`codex`](../src/providers/codex) (device-code auth, Cloudflare-aware transport,
+  cookie jar) and [`xai`](../src/providers/xai) (loopback/paste auth, `x-grok-conv-id`, a
+  `sanitize.ts` of quirks, live model discovery, `403 → xai_tier_denied`).
+- **Chat Completions** — [`copilot`](../src/providers/copilot) (GitHub device-code login then a
+  Copilot-token exchange in `refresh`) and [`qwen`](../src/providers/qwen) (device-code + PKCE).
+- **Anthropic Messages** — [`minimax`](../src/providers/minimax) (PKCE user-code grant).
+- **Gemini** — [`gemini`](../src/providers/gemini) (Google auth-code + PKCE paste flow, a login-time
+  Cloud Code project-onboarding step in `onboard.ts`, and a `sanitizeBody` that folds the account's
+  project into each request).

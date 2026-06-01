@@ -4,12 +4,17 @@ ownllm is an OpenAI-compatible API server that runs on your LLM **subscriptions*
 keys. Point any OpenAI client at it, and it routes each request by the requested `model` to a
 backend you've logged into over OAuth:
 
-- **ChatGPT / Codex** (`openai-codex`)
-- **xAI Grok Build / SuperGrok** (`xai`)
+- **ChatGPT / Codex** (`openai-codex`) — OpenAI Responses API
+- **xAI Grok Build / SuperGrok** (`xai`) — OpenAI Responses API
+- **GitHub Copilot** (`copilot`) — Chat Completions
+- **Qwen** (`qwen`, your qwen.ai login) — Chat Completions
+- **MiniMax** (`minimax`) — Anthropic Messages API
+- **Google Gemini** (`gemini`, via Cloud Code Assist) — Gemini API
 
-Both providers actually speak the OpenAI Responses API, so ownllm translates between Chat
-Completions and Responses for you. Your existing tooling keeps working, streaming and tool calls
-included, and token usage passes straight through.
+Each backend speaks its own wire format; ownllm translates between Chat Completions (what your
+client sends) and whatever the provider expects — Responses, Anthropic Messages, or Gemini. Your
+existing tooling keeps working, streaming and tool calls included, and token usage passes straight
+through.
 
 ## Why this exists
 
@@ -79,6 +84,7 @@ providers:
     enabled: true
   xai:
     enabled: true
+  # also available, once you log in: copilot, qwen, minimax, gemini
 models:                       # the routing table: requested model -> upstream provider + model
   gpt-5:
     provider: openai-codex
@@ -114,7 +120,7 @@ ownllm serve --host 0.0.0.0
 ```
 ownllm config init                       write a starter config
 ownllm serve [--config p] [--host h] [--port n]
-ownllm auth login <openai-codex|xai>     OAuth login, store the credential
+ownllm auth login <provider>             OAuth login, store the credential (openai-codex, xai, copilot, qwen, minimax, gemini)
 ownllm auth status                       validity, identity, expiry (tokens redacted)
 ownllm auth logout <provider>
 ownllm auth import openai-codex          reuse the official Codex CLI login (~/.codex); see the warning it prints

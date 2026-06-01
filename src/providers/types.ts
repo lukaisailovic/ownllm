@@ -38,7 +38,9 @@ export interface Transport {
   hosts: string[]
   endpoint(ctx: TranslateContext): string
   headers(credential: Credential, ctx: TranslateContext): Record<string, string>
-  sanitizeBody?(body: unknown, ctx: TranslateContext): unknown
+  // credential is supplied so a provider can fold per-account state (e.g. Gemini's project id) into
+  // the body; most providers ignore it and own only their wire quirks here.
+  sanitizeBody?(body: unknown, ctx: TranslateContext, credential: Credential): unknown
   client(): UpstreamClient
   classifyError(status: number, headers: Headers, body: string): OwnllmError
 }

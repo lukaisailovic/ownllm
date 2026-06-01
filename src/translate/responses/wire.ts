@@ -1,28 +1,13 @@
-import { randomUUID } from 'node:crypto'
 import { asRecord, getNumber, getString } from '../../util/json'
 import type { FinishReason, Usage } from '../types'
 
-// Shared helpers for translating the OpenAI Responses wire format (used by both the streaming and
-// the aggregate paths).
-
-export function parseEventData(data: string): unknown {
-  try {
-    return JSON.parse(data)
-  } catch {
-    return undefined
-  }
-}
+// Helpers for translating the OpenAI Responses wire format (used by both the streaming and the
+// aggregate paths). The format-agnostic primitives live in ../wire and are re-exported so the
+// Responses internals keep importing everything from one place.
+export { completionId, epochSeconds, parseEventData } from '../wire'
 
 export function eventType(data: unknown): string | undefined {
   return getString(data, 'type')
-}
-
-export function completionId(): string {
-  return `chatcmpl-${randomUUID().replace(/-/g, '')}`
-}
-
-export function epochSeconds(): number {
-  return Math.floor(Date.now() / 1000)
 }
 
 // Extracts token usage from a Responses `response` object (input/output -> prompt/completion).

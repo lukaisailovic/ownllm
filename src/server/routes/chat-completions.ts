@@ -189,7 +189,7 @@ async function attemptCandidate(
   }
 
   const translated = provider.translator.toUpstream(request, ctx)
-  const body = provider.transport.sanitizeBody?.(translated, ctx) ?? translated
+  const body = provider.transport.sanitizeBody?.(translated, ctx, credential) ?? translated
 
   const send = (cred: Credential) =>
     provider.transport.client().fetch(provider.transport.endpoint(ctx), {
