@@ -74,9 +74,12 @@ registerProvider(myModule)
 ```yaml
 # config.yaml
 providers:
-  my-provider: { enabled: true }
+  my-provider:
+    enabled: true
 models:
-  my-model: { provider: my-provider, upstream: upstream-model-id }
+  my-model:
+    provider: my-provider
+    upstream: upstream-model-id
 ```
 
 The `providers` block is an open record keyed by id (not a closed enum), so a new id needs no schema

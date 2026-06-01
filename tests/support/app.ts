@@ -11,11 +11,17 @@ server:
   host: 127.0.0.1
   api_key: test-key
 providers:
-  openai-codex: { enabled: true }
-  xai: { enabled: true }
+  openai-codex:
+    enabled: true
+  xai:
+    enabled: true
 models:
-  gpt-5: { provider: openai-codex, upstream: gpt-5 }
-  grok: { provider: xai, upstream: grok-build }
+  gpt-5:
+    provider: openai-codex
+    upstream: gpt-5
+  grok:
+    provider: xai
+    upstream: grok-build
 `
 
 export function testConfig(yaml = DEFAULT_CONFIG_YAML): Config {

@@ -25,7 +25,7 @@ pnpm test` (and `pnpm build` if you touched build/runtime wiring). Match what CI
 src/cli/         citty commands (serve, auth, config, models, doctor)
 src/config/      zod schema, ${ENV} loader, paths, loopback check
 src/server/      Hono app, middleware, routes, readiness
-src/router/      resolveModel(name) -> { providerId, upstreamModel, reasoningEffort }
+src/router/      resolveModel/resolveChain(name) -> ordered route candidates; fallback breaker
 src/providers/   types (extension contract), registry, codex/, xai/
 src/translate/   CC types + error factory + param policy; responses/ translator (shared)
 src/auth/        Credential, AuthStore (0600+lock), single-flight RefreshManager, OAuth primitives
@@ -75,6 +75,11 @@ tests/support/   shared test helpers (createTestApp, fakeModule, sseResponse, re
   quirks. Never do the same thing in both (drift).
 - **Always stream upstream**; relay to the client or aggregate at the edge. `fromUpstream` consumes
   the event stream.
+- **Fallback is pre-first-byte only.** The route tries candidates (requested model + its direct
+  `fallbacks`, not transitive) until one yields a streamable upstream; once relay starts we're
+  committed. Never fall back on a client disconnect/timeout, and don't penalize a model's breaker
+  health for those. `resolveChain` (`router/resolve.ts`) dedupes so a cycle can't loop; the circuit
+  breaker (`router/breaker.ts`) is in-process and keyed by model name.
 - **Host-pinned egress.** Bearer tokens/cookies go only to allowlisted hosts; `redirect:'manual'`.
   Don't bypass `UpstreamClient`.
 - **Redaction.** Never log tokens. `Credential` redacts in `toJSON`/`inspect`; raw tokens come out

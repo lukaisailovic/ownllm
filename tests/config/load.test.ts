@@ -104,6 +104,69 @@ models:
     const result = parseConfig('server: : :', {})
     expect(result.ok).toBe(false)
   })
+
+  it('parses fallbacks and defaults the fallback policy', () => {
+    const config = `
+providers:
+  openai-codex:
+    enabled: true
+models:
+  gpt-5:
+    provider: openai-codex
+    upstream: gpt-5
+    fallbacks: [fast]
+  fast:
+    provider: openai-codex
+    upstream: gpt-5-mini
+`
+    const result = parseConfig(config, {})
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.config.models['gpt-5']?.fallbacks).toEqual(['fast'])
+    expect(result.config.fallback).toEqual({ failure_threshold: 3, cooldown_ms: 30_000 })
+  })
+
+  it('applies custom fallback policy values', () => {
+    const result = parseConfig('fallback:\n  failure_threshold: 5\n  cooldown_ms: 1000', {})
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.config.fallback).toEqual({ failure_threshold: 5, cooldown_ms: 1000 })
+  })
+
+  it('rejects a fallback that references an unknown model', () => {
+    const config = `
+providers:
+  openai-codex:
+    enabled: true
+models:
+  gpt-5:
+    provider: openai-codex
+    upstream: gpt-5
+    fallbacks: [ghost]
+`
+    const result = parseConfig(config, {})
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.issues[0]?.path).toBe('models.gpt-5.fallbacks')
+  })
+
+  it('allows a fallback cycle between models', () => {
+    const config = `
+providers:
+  openai-codex:
+    enabled: true
+models:
+  a:
+    provider: openai-codex
+    upstream: up-a
+    fallbacks: [b]
+  b:
+    provider: openai-codex
+    upstream: up-b
+    fallbacks: [a]
+`
+    expect(parseConfig(config, {}).ok).toBe(true)
+  })
 })
 
 describe('isLoopbackHost', () => {

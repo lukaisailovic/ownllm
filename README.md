@@ -75,16 +75,27 @@ server:
   request_timeout_ms: 600000
   strict_params: false        # true rejects unsupported params with 400 instead of ignoring them
 providers:
-  openai-codex: { enabled: true }
-  xai:          { enabled: true }
+  openai-codex:
+    enabled: true
+  xai:
+    enabled: true
 models:                       # the routing table: requested model -> upstream provider + model
-  gpt-5:  { provider: openai-codex, upstream: gpt-5 }
-  grok:   { provider: xai,          upstream: grok-build, reasoning_effort: medium }
+  gpt-5:
+    provider: openai-codex
+    upstream: gpt-5
+    fallbacks: [grok]         # if gpt-5 fails, retry the request on grok
+  grok:
+    provider: xai
+    upstream: grok-build
+    reasoning_effort: medium
 ```
 
 The `models` table is the whole point of ownllm. Model names are matched exactly and
-case-sensitively. String values support `${ENV_VAR}` interpolation (resolved after the YAML parses,
-so it's safe to use in comments), and a referenced variable that isn't set is a hard startup error.
+case-sensitively. A model can list `fallbacks` — other models to retry when it fails, even across
+providers, with a circuit breaker so a model that's down gets skipped (see
+[configuration](docs/configuration.md#fallbacks)). String values support `${ENV_VAR}` interpolation
+(resolved after the YAML parses, so it's safe to use in comments), and a referenced variable that
+isn't set is a hard startup error.
 
 ### Going beyond localhost
 

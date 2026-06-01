@@ -4,7 +4,9 @@ import type { Credential } from '../../auth/credential'
 import { AuthError } from '../../auth/errors'
 import { parseSSE } from '../../http/sse'
 import { logger } from '../../logger'
-import { resolveModel } from '../../router/resolve'
+import type { ProviderModule } from '../../providers/types'
+import type { CircuitBreaker } from '../../router/breaker'
+import { type ResolvedRoute, resolveChain } from '../../router/resolve'
 import {
   OwnllmError,
   credentialExpired,
@@ -18,20 +20,38 @@ import { enforceParamPolicy } from '../../translate/param-policy'
 import { deriveConversationId } from '../../translate/responses'
 import {
   type ChatCompletionChunk,
+  type ChatCompletionRequest,
   ChatCompletionRequestSchema,
   type TranslateContext,
 } from '../../translate/types'
 import type { AppDeps } from '../app'
 import type { AppEnv } from '../types'
 
+interface Candidate {
+  model: string
+  route: ResolvedRoute
+  provider: ProviderModule
+}
+
+interface ServedUpstream {
+  stream: ReadableStream<Uint8Array>
+  ctx: TranslateContext
+  candidate: Candidate
+}
+
 export function registerChatRoutes(
   app: { post: (path: string, handler: (c: Context<AppEnv>) => Promise<Response>) => unknown },
   deps: AppDeps,
+  breaker: CircuitBreaker,
 ): void {
-  app.post('/v1/chat/completions', (c) => handleChatCompletion(c, deps))
+  app.post('/v1/chat/completions', (c) => handleChatCompletion(c, deps, breaker))
 }
 
-async function handleChatCompletion(c: Context<AppEnv>, deps: AppDeps): Promise<Response> {
+async function handleChatCompletion(
+  c: Context<AppEnv>,
+  deps: AppDeps,
+  breaker: CircuitBreaker,
+): Promise<Response> {
   const requestId = c.get('requestId')
 
   const raw = await c.req.json().catch(() => null)
@@ -45,27 +65,131 @@ async function handleChatCompletion(c: Context<AppEnv>, deps: AppDeps): Promise<
   const { ignored } = enforceParamPolicy(request, deps.config.server.strict_params)
   if (ignored.length > 0) logger.debug({ requestId, ignored }, 'ignoring unsupported params')
 
-  const route = resolveModel(deps.config, request.model)
-  const provider = route && deps.getProvider(route.providerId)
-  if (!route || !provider) throw modelNotFound(request.model)
+  const candidates = orderedCandidates(deps, breaker, request.model)
+  if (candidates.length === 0) throw modelNotFound(request.model)
 
-  let credential = await withMappedAuthErrors(() => deps.ensureCredential(route.providerId))
-
-  const ctx: TranslateContext = {
-    requestedModel: request.model,
-    upstreamModel: route.upstreamModel,
-    conversationId: deriveConversationId(request),
-    includeUsage: request.stream_options?.include_usage ?? false,
-    reasoningEffort: route.reasoningEffort,
-  }
-
-  const translated = provider.translator.toUpstream(request, ctx)
-  const body = provider.transport.sanitizeBody?.(translated, ctx) ?? translated
+  const conversationId = deriveConversationId(request)
+  const includeUsage = request.stream_options?.include_usage ?? false
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), deps.config.server.request_timeout_ms)
   // Client disconnect aborts the upstream fetch -> stops quota burn and socket leaks (PLAN §12).
   c.req.raw.signal.addEventListener('abort', () => controller.abort(), { once: true })
+
+  // Try candidates in order until one yields a streamable upstream. Fallback is strictly
+  // pre-first-byte: once we relay the stream we are committed (PLAN §10). A client disconnect or
+  // timeout aborts the shared signal and ends the loop without penalizing a model's health.
+  let served: ServedUpstream | undefined
+  let lastError: OwnllmError | undefined
+  for (const candidate of candidates) {
+    if (controller.signal.aborted) break
+    try {
+      const result = await attemptCandidate(
+        candidate,
+        request,
+        conversationId,
+        includeUsage,
+        controller,
+        deps,
+      )
+      breaker.recordSuccess(candidate.model)
+      served = { ...result, candidate }
+      break
+    } catch (error) {
+      if (!(error instanceof OwnllmError)) {
+        clearTimeout(timeout)
+        throw error
+      }
+      lastError = error
+      if (controller.signal.aborted) break
+      breaker.recordFailure(candidate.model)
+      logger.warn(
+        { requestId, model: candidate.model, status: error.status, code: error.code },
+        'candidate failed; trying next',
+      )
+    }
+  }
+
+  if (!served) {
+    clearTimeout(timeout)
+    throw lastError ?? upstreamError()
+  }
+
+  const { stream, ctx, candidate } = served
+  if (candidate.model !== request.model) {
+    logger.info(
+      { requestId, requested: request.model, served: candidate.model },
+      'served via fallback',
+    )
+  }
+  c.header('x-ownllm-served-by', candidate.model)
+
+  const events = parseSSE(stream)
+
+  if (request.stream) {
+    return streamSSE(c, async (sse) => {
+      try {
+        for await (const chunk of candidate.provider.translator.streamToChunks(events, ctx)) {
+          await sse.writeSSE({ data: JSON.stringify(chunk) })
+        }
+      } catch (error) {
+        // Past the first byte we cannot emit an OpenAI error object, so close cleanly: a finish
+        // chunk + exactly one [DONE], no retry. (PLAN §10.)
+        logger.error({ requestId, err: errorMessage(error) }, 'mid-stream upstream failure')
+        await sse.writeSSE({ data: JSON.stringify(finishChunk(ctx)) })
+      } finally {
+        await sse.writeSSE({ data: '[DONE]' })
+        clearTimeout(timeout)
+      }
+    })
+  }
+
+  try {
+    return c.json(await candidate.provider.translator.fromUpstream(events, ctx))
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+// The ordered candidates for a request: the requested model and its direct fallbacks that resolve
+// to a registered provider. Healthy models come first in declaration order; circuit-open models
+// are kept as a last resort so a request still makes one real attempt under a full outage.
+function orderedCandidates(deps: AppDeps, breaker: CircuitBreaker, model: string): Candidate[] {
+  const healthy: Candidate[] = []
+  const cooling: Candidate[] = []
+  for (const { model: name, route } of resolveChain(deps.config, model)) {
+    const provider = deps.getProvider(route.providerId)
+    if (!provider) continue
+    const bucket = breaker.shouldSkip(name) ? cooling : healthy
+    bucket.push({ model: name, route, provider })
+  }
+  return [...healthy, ...cooling]
+}
+
+// One pre-first-byte attempt against a single candidate: translate, send (with the reactive
+// 401 refresh-and-retry-once), and validate the response. Returns the SSE byte stream + context on
+// success, or throws a OwnllmError that the caller treats as a fallback trigger.
+async function attemptCandidate(
+  candidate: Candidate,
+  request: ChatCompletionRequest,
+  conversationId: string,
+  includeUsage: boolean,
+  controller: AbortController,
+  deps: AppDeps,
+): Promise<{ stream: ReadableStream<Uint8Array>; ctx: TranslateContext }> {
+  const { provider, route } = candidate
+  let credential = await withMappedAuthErrors(() => deps.ensureCredential(route.providerId))
+
+  const ctx: TranslateContext = {
+    requestedModel: request.model,
+    upstreamModel: route.upstreamModel,
+    conversationId,
+    includeUsage,
+    reasoningEffort: route.reasoningEffort,
+  }
+
+  const translated = provider.translator.toUpstream(request, ctx)
+  const body = provider.transport.sanitizeBody?.(translated, ctx) ?? translated
 
   const send = (cred: Credential) =>
     provider.transport.client().fetch(provider.transport.endpoint(ctx), {
@@ -85,42 +209,16 @@ async function handleChatCompletion(c: Context<AppEnv>, deps: AppDeps): Promise<
       upstream = await send(credential)
     }
   } catch (error) {
-    clearTimeout(timeout)
     if (error instanceof OwnllmError) throw error
     throw upstreamError(`upstream request failed: ${errorMessage(error)}`)
   }
 
   if (!upstream.ok || !upstream.body) {
-    clearTimeout(timeout)
     const text = await upstream.text().catch(() => '')
     throw provider.transport.classifyError(upstream.status, upstream.headers, text)
   }
 
-  const events = parseSSE(upstream.body)
-
-  if (request.stream) {
-    return streamSSE(c, async (sse) => {
-      try {
-        for await (const chunk of provider.translator.streamToChunks(events, ctx)) {
-          await sse.writeSSE({ data: JSON.stringify(chunk) })
-        }
-      } catch (error) {
-        // Past the first byte we cannot emit an OpenAI error object, so close cleanly: a finish
-        // chunk + exactly one [DONE], no retry. (PLAN §10.)
-        logger.error({ requestId, err: errorMessage(error) }, 'mid-stream upstream failure')
-        await sse.writeSSE({ data: JSON.stringify(finishChunk(ctx)) })
-      } finally {
-        await sse.writeSSE({ data: '[DONE]' })
-        clearTimeout(timeout)
-      }
-    })
-  }
-
-  try {
-    return c.json(await provider.translator.fromUpstream(events, ctx))
-  } finally {
-    clearTimeout(timeout)
-  }
+  return { stream: upstream.body, ctx }
 }
 
 // Translates auth-layer failures into the HTTP error contract (PLAN §11).
