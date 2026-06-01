@@ -12,7 +12,7 @@ src/
   cli/          citty commands: serve, auth, config, models, doctor
   config/       zod schema, ${ENV} loader, XDG-ish paths, loopback check
   server/       Hono app, middleware (requestId, clientAuth), routes, readiness
-  router/       resolveModel(name) -> { providerId, upstreamModel, reasoningEffort }
+  router/       resolveModel/resolveChain (model -> ordered candidates) + fallback circuit breaker
   providers/    types (the extension contract), registry, codex/, xai/
   translate/    CC types + error factory + param policy; responses/ translator
   auth/         Credential, AuthStore (0600 + lock), single-flight RefreshManager
@@ -31,19 +31,22 @@ the shared Responses translator with a Codex-specific transport.
 3. **Validate** the body against the Chat Completions zod schema (`translate/types.ts`).
 4. **Param policy** (`translate/param-policy.ts`): `n>1` → 400; ignored params are dropped (or 400
    under `strict_params`).
-5. **Route** the `model` via `router/resolve.ts` → 404 `model_not_found` if absent.
-6. **Resolve the provider** from the registry by id.
-7. **Ensure a fresh credential** via the single-flight `RefreshManager` (`auth/refresh.ts`).
-8. **Build context**: requested model (echoed back), upstream model, deterministic conversation id,
-   `include_usage` (captured before sanitize), per-model reasoning effort.
-9. **Translate** CC → provider wire format (`translator.toUpstream`), then **sanitize** provider
-   quirks (`transport.sanitizeBody`).
-10. **Wire abort**: an `AbortController` fed by both `request_timeout_ms` and the client's
-    `c.req.raw.signal`, so a client disconnect aborts the upstream fetch.
-11. **POST upstream** through the host-pinned client (`transport.client()`), always streaming.
-12. **Relay or aggregate**: if the client asked for `stream:true`, relay `streamToChunks` as SSE
-    ending in exactly one `[DONE]`; otherwise aggregate the stream via `fromUpstream` into one
-    `chat.completion`.
+5. **Resolve the candidate chain** via `router/resolve.ts`: the requested model plus its direct
+   `fallbacks` (one level deep, deduped so cycles can't loop) → 404 `model_not_found` if the
+   requested model is absent. Ordered healthy-first by the per-model breaker (`router/breaker.ts`).
+6. **Wire abort**: one `AbortController` fed by both `request_timeout_ms` and the client's
+   `c.req.raw.signal`, shared across every candidate attempt, so a disconnect aborts the upstream.
+7. **Attempt candidates in order** until one yields a streamable upstream. Each attempt resolves the
+   provider, ensures a fresh credential (single-flight `RefreshManager`), builds context (requested
+   model echoed back, upstream model, deterministic conversation id, `include_usage`, per-model
+   reasoning effort), translates CC → wire (`translator.toUpstream`) + sanitizes
+   (`transport.sanitizeBody`), and POSTs through the host-pinned client, always streaming.
+8. **On a pre-first-byte failure** (connection error, non-2xx, dead credential) record it on the
+   breaker and try the next candidate; an abort (disconnect/timeout) stops the loop without
+   penalizing the model. Exhausting the chain throws the last error.
+9. **Relay or aggregate** the winner (and set `x-ownllm-served-by`): if the client asked for
+   `stream:true`, relay `streamToChunks` as SSE ending in exactly one `[DONE]`; otherwise aggregate
+   the stream via `fromUpstream` into one `chat.completion`.
 
 Any thrown `OwnllmError` is rendered by the app's `onError` into the OpenAI error envelope with the
 request id (`translate/errors.ts`).

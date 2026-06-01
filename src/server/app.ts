@@ -3,6 +3,7 @@ import type { Credential } from '../auth/credential'
 import type { Config } from '../config/schema'
 import { logger } from '../logger'
 import type { ProviderModule } from '../providers/types'
+import { type CircuitBreaker, createCircuitBreaker } from '../router/breaker'
 import { OwnllmError, internalError } from '../translate/errors'
 import { clientAuth } from './middleware/clientAuth'
 import { requestLogger } from './middleware/logger'
@@ -19,10 +20,18 @@ export interface AppDeps {
   getProvider: (id: string) => ProviderModule | undefined
   ensureCredential: (providerId: string) => Promise<Credential>
   refreshAfterUnauthorized: (providerId: string) => Promise<Credential>
+  // Per-server fallback circuit breaker; defaults to one built from config.fallback.
+  breaker?: CircuitBreaker
 }
 
 export function createApp(deps: AppDeps): Hono<AppEnv> {
   const app = new Hono<AppEnv>()
+  const breaker =
+    deps.breaker ??
+    createCircuitBreaker({
+      failureThreshold: deps.config.fallback.failure_threshold,
+      cooldownMs: deps.config.fallback.cooldown_ms,
+    })
 
   app.use('*', requestId)
 
@@ -44,7 +53,7 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   app.use('/v1/*', requestLogger)
   app.use('/v1/*', clientAuth(deps.config.server.api_key))
   registerModelsRoutes(app, deps.config, deps.startedAt)
-  registerChatRoutes(app, deps)
+  registerChatRoutes(app, deps, breaker)
 
   return app
 }

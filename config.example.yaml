@@ -9,6 +9,13 @@ server:
   request_timeout_ms: 600000  # upstream abort deadline
   strict_params: false        # true => unsupported params return 400 instead of being ignored
 
+# Fallback circuit breaker (optional; shown with defaults). When a model lists `fallbacks`, a
+# failed request is retried on them in order. A model that fails failure_threshold times in a row
+# is then skipped for cooldown_ms before it gets another try.
+fallback:
+  failure_threshold: 3
+  cooldown_ms: 30000
+
 providers:
   openai-codex:
     enabled: true
@@ -24,6 +31,7 @@ models:
   gpt-5:
     provider: openai-codex
     upstream: gpt-5
+    fallbacks: [grok]         # on failure, retry the request on grok (must be a model defined here)
   grok:
     provider: xai
     upstream: grok-build      # Grok Build model names churn; verify with 'ownllm models --remote'

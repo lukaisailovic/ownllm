@@ -51,7 +51,8 @@ function printRoutes(models: Config['models']): void {
     const upstream = route.reasoning_effort
       ? `${route.upstream} ${style.dim(`· reasoning ${route.reasoning_effort}`)}`
       : route.upstream
-    return [id, route.provider, upstream]
+    const fallbacks = route.fallbacks?.length ? route.fallbacks.join(', ') : style.dim('—')
+    return [id, route.provider, upstream, fallbacks]
   })
-  out.table([['ALIAS', 'PROVIDER', 'UPSTREAM'], ...rows], { head: true })
+  out.table([['ALIAS', 'PROVIDER', 'UPSTREAM', 'FALLBACKS'], ...rows], { head: true })
 }

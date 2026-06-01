@@ -14,11 +14,18 @@ server:
   host: 127.0.0.1
   port: 8787
 providers:
-  openai-codex: { enabled: true }
-  xai:          { enabled: true }
+  openai-codex:
+    enabled: true
+  xai:
+    enabled: true
 models:
-  gpt-5: { provider: openai-codex, upstream: gpt-5 }
-  grok:  { provider: xai,          upstream: grok-build, reasoning_effort: medium }
+  gpt-5:
+    provider: openai-codex
+    upstream: gpt-5
+  grok:
+    provider: xai
+    upstream: grok-build
+    reasoning_effort: medium
 ```
 
 ## The models table
@@ -28,9 +35,16 @@ model that should serve it. This is the part that makes ownllm worth running.
 
 ```yaml
 models:
-  gpt-5: { provider: openai-codex, upstream: gpt-5 }
-  fast:  { provider: openai-codex, upstream: gpt-5-mini }
-  grok:  { provider: xai,          upstream: grok-build, reasoning_effort: medium }
+  gpt-5:
+    provider: openai-codex
+    upstream: gpt-5
+  fast:
+    provider: openai-codex
+    upstream: gpt-5-mini
+  grok:
+    provider: xai
+    upstream: grok-build
+    reasoning_effort: medium
 ```
 
 The left side is yours to name. A client that sends `"model": "fast"` gets routed by this table; the
@@ -43,6 +57,8 @@ A few rules:
 - Every `provider` you reference has to be enabled under `providers`, or the server won't start.
 - `reasoning_effort` is optional (`minimal`, `low`, `medium`, `high`). It sets the default for that
   model when a request doesn't send one.
+- `fallbacks` is optional — an ordered list of other model names to retry on failure. See
+  [Fallbacks](#fallbacks).
 
 `ownllm models` shows two different things, and it's worth keeping them straight:
 
@@ -54,6 +70,61 @@ A few rules:
 The catalog is the one to trust when you pin an `upstream`. A model missing from it may still answer
 — xAI tolerates some legacy slugs (`grok-3-mini`, say) — but it isn't supported on your tier and is
 often the slow path. Grok's names churn week to week, so re-check `--remote` whenever one misbehaves.
+
+## Fallbacks
+
+Any model can name other models to fall back to when its request fails. `fallbacks` is an ordered
+list of model names from the same table:
+
+```yaml
+models:
+  gpt-5:
+    provider: openai-codex
+    upstream: gpt-5
+    fallbacks: [grok, grok-4]   # try gpt-5, then grok, then grok-4
+  grok:
+    provider: xai
+    upstream: grok-build
+  grok-4:
+    provider: xai
+    upstream: grok-4.3
+```
+
+A request for `gpt-5` is attempted on `gpt-5` first; if that fails it retries on `grok`, then
+`grok-4`, in order. Because the chain crosses providers, this is also how you ride out one
+subscription being rate-limited or blocked by failing over to the other.
+
+A few details:
+
+- **One level deep, not transitive.** Only the requested model's own `fallbacks` are tried. A
+  fallback's *own* `fallbacks` are never followed — `gpt-5 → grok` will not then chase `grok`'s
+  fallbacks. If you want a longer chain, list every model explicitly on the one you request.
+- **Cycles are fine.** `a` may list `b` while `b` lists `a`. Because resolution never expands a
+  fallback's own list, requesting `a` just tries `a` then `b` and stops (never `a → b → a`).
+  Referencing a model that isn't in the table is a startup error.
+- **Pre-first-byte only.** Fallback happens before any response bytes reach the client — on a
+  connection error, a non-2xx upstream status (429 / 403 / 5xx), or a dead credential. Once the
+  reply has started streaming, ownllm is committed and a mid-stream failure just ends the stream.
+  A client disconnect or the request timeout stops the chain without trying further models.
+- **Served-by header.** Every response carries `x-ownllm-served-by`, the model that actually
+  answered — handy for spotting when a fallback kicked in.
+
+### The circuit breaker
+
+Retrying a model that is reliably down wastes a round-trip on every request. The optional `fallback`
+block adds a per-model circuit breaker: after `failure_threshold` consecutive failures a model is
+taken out of rotation for `cooldown_ms`, so requests skip straight to a healthy fallback. When the
+window passes, the next request is a trial — success puts the model back, another failure re-arms
+the cooldown. If every model in a chain is in cooldown, the request still makes one real attempt
+rather than failing outright.
+
+```yaml
+fallback:
+  failure_threshold: 3   # consecutive failures before a model is skipped
+  cooldown_ms: 30000     # how long to skip it before the next trial (0 disables skipping)
+```
+
+The breaker is in-memory and per server process; it resets on restart.
 
 ## Server options
 
