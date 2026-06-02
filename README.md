@@ -4,17 +4,15 @@ ownllm is an OpenAI-compatible API server that runs on your LLM **subscriptions*
 keys. Point any OpenAI client at it, and it routes each request by the requested `model` to a
 backend you've logged into over OAuth:
 
-- **ChatGPT / Codex** (`openai-codex`) — OpenAI Responses API
-- **xAI Grok Build / SuperGrok** (`xai`) — OpenAI Responses API
-- **GitHub Copilot** (`copilot`) — Chat Completions
-- **Qwen** (`qwen`, your qwen.ai login) — Chat Completions
-- **MiniMax** (`minimax`) — Anthropic Messages API
-- **Google Gemini** (`gemini`, via Cloud Code Assist) — Gemini API
+- **ChatGPT / Codex** (`openai-codex`)
+- **xAI Grok Build / SuperGrok** (`xai`)
+- **GitHub Copilot** (`copilot`)
+- **Qwen** (`qwen`, your qwen.ai login)
+- **MiniMax** (`minimax`)
+- **Google Gemini** (`gemini`, via Cloud Code Assist)
 
-Each backend speaks its own wire format; ownllm translates between Chat Completions (what your
-client sends) and whatever the provider expects — Responses, Anthropic Messages, or Gemini. Your
-existing tooling keeps working, streaming and tool calls included, and token usage passes straight
-through.
+Each backend speaks a different API under the hood; ownllm does the translating, so your existing
+OpenAI tooling keeps working — streaming, tool calls, and token usage all pass straight through.
 
 ## Why this exists
 
