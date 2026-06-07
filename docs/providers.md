@@ -37,10 +37,10 @@ interface Translator {
 ```
 
 ownllm ships four translators under [`src/translate/`](../src/translate): `responses` (Codex, xAI),
-`chat` (Copilot, Qwen), `anthropic` (MiniMax), and `gemini` (Google Cloud Code Assist). Reuse the
-one that matches your provider's wire format; for a brand-new format, add a `translate/<format>/`
-implementation — the router and server don't change. They all share the format-agnostic helpers in
-[`src/translate/wire.ts`](../src/translate/wire.ts).
+`chat` (Copilot, Qwen, Claude CLI adapter), `anthropic` (MiniMax), and `gemini` (Google Cloud Code
+Assist). Reuse the one that matches your provider's wire format; for a brand-new format, add a
+`translate/<format>/` implementation — the router and server don't change. They all share the
+format-agnostic helpers in [`src/translate/wire.ts`](../src/translate/wire.ts).
 
 ## 3. Transport
 
@@ -91,6 +91,9 @@ change. Worked examples, by wire format:
   `sanitize.ts` of quirks, live model discovery, `403 → xai_tier_denied`).
 - **Chat Completions** — [`copilot`](../src/providers/copilot) (GitHub device-code login then a
   Copilot-token exchange in `refresh`) and [`qwen`](../src/providers/qwen) (device-code + PKCE).
+- **Claude Code CLI** — [`claude`](../src/providers/claude) shells out to the locally authenticated
+  `claude -p` command and emits OpenAI-compatible SSE; it stores only a local-auth placeholder and
+  has no Anthropic API-key path.
 - **Anthropic Messages** — [`minimax`](../src/providers/minimax) (PKCE user-code grant).
 - **Gemini** — [`gemini`](../src/providers/gemini) (Google auth-code + PKCE paste flow, a login-time
   Cloud Code project-onboarding step in `onboard.ts`, and a `sanitizeBody` that folds the account's

@@ -4,7 +4,7 @@ ownllm reaches each provider through your subscription login instead of an API k
 per provider, ownllm stores the OAuth tokens under `~/.ownllm/`, and from then on it refreshes them
 for you.
 
-Six providers are supported:
+Seven providers are supported:
 
 | Provider | Subscription | Login id |
 |---|---|---|
@@ -14,6 +14,7 @@ Six providers are supported:
 | Qwen | A qwen.ai account | `qwen` |
 | MiniMax | A MiniMax account | `minimax` |
 | Google Gemini | A Google account with Cloud Code Assist (Gemini free or paid) | `gemini` |
+| Claude Code | Claude Code CLI already authenticated locally | `claude` |
 
 ## Logging in
 
@@ -78,6 +79,13 @@ scenes; nothing about the flow changes for you. These work the same headless as 
 URL, you approve, and Google redirects to a `http://localhost:…` page that won't load — paste that
 address (or just the code) back into the terminal. At login ownllm also resolves your Cloud Code
 Assist project (provisioning one on the free tier); set `GOOGLE_CLOUD_PROJECT` to pin a specific one.
+
+### Claude Code
+
+`ownllm auth login claude` does not run an OAuth or API-key flow. It checks the local Claude Code CLI
+with `claude auth status --text` and stores a placeholder credential if that CLI session is ready.
+Run `claude auth login` first if the check fails. Requests shell out to `claude -p` using that local
+subscription session; ownllm never reads Claude credential files or stores an Anthropic API key.
 
 ## Checking what's stored
 

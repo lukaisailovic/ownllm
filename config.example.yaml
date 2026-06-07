@@ -30,6 +30,8 @@ providers:
     enabled: false            # MiniMax (Anthropic Messages API)
   gemini:
     enabled: false            # Google Gemini, via Cloud Code Assist (Gemini API)
+  claude:
+    enabled: false            # Claude Code CLI local auth (no Anthropic API key)
 
 # Routing table: requested model name -> upstream provider + model.
 # A requested model absent from this table returns 404 (model_not_found).
@@ -62,3 +64,6 @@ models:
   gemini:
     provider: gemini
     upstream: gemini-2.5-pro
+  claude:
+    provider: claude
+    upstream: sonnet
