@@ -20,9 +20,19 @@ const PLACEHOLDER = 'claude-code-local-auth'
 const TTL_SECONDS = 90 * 24 * 60 * 60
 export const MAX_COMMAND_OUTPUT_BYTES = 1024 * 1024
 
+// The claude CLI requires USER to be set in order to locate its auth config (~/.claude.json).
+// When ownllm runs as a LaunchAgent the plist env may omit USER, so we inject it explicitly,
+// deriving it from HOME if necessary (e.g. HOME=/Users/alice → USER=alice).
+function claudeEnv(): NodeJS.ProcessEnv {
+  if (process.env.USER) return process.env
+  const home = process.env.HOME ?? ''
+  const derived = home.split('/').at(-1) ?? ''
+  return derived ? { ...process.env, USER: derived } : process.env
+}
+
 export const runCommand: CommandRunner = (command, args, signal, stdin) =>
   new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'], env: claudeEnv() })
     let stdout = ''
     let stderr = ''
     let stdoutBytes = 0

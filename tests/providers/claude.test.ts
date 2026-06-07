@@ -83,6 +83,22 @@ describe('claude auth', () => {
     } satisfies Partial<AuthError>)
   })
 
+  it('passes USER env var to subprocess so claude can find its config without a login shell', async () => {
+    const originalUser = process.env.USER
+    process.env.USER = undefined
+    try {
+      const result = await runCommand(process.execPath, [
+        '-e',
+        'process.stdout.write(process.env.USER ?? "missing")',
+      ])
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).not.toBe('missing')
+      expect(result.stdout.length).toBeGreaterThan(0)
+    } finally {
+      process.env.USER = originalUser
+    }
+  })
+
   it('bounds command stdout and stderr capture', async () => {
     const result = await runCommand(process.execPath, [
       '-e',
@@ -134,7 +150,17 @@ describe('claude translator + transport', () => {
     expect(calls).toEqual([
       {
         command: 'claude',
-        args: ['-p', '--output-format', 'json', '--max-turns', '1', '--model', 'sonnet'],
+        args: [
+          '-p',
+          '--output-format',
+          'json',
+          '--max-turns',
+          '2',
+          '--model',
+          'sonnet',
+          '--system-prompt',
+          expect.stringContaining('Do not use Claude Code tools'),
+        ],
         stdin: 'USER:\nHello',
       },
     ])
@@ -164,6 +190,21 @@ describe('claude translator + transport', () => {
   it('classifies transport errors with the shared status policy', () => {
     expect(claudeTransport.classifyError(401, new Headers(), '').code).toBe('credential_expired')
     expect(claudeTransport.classifyError(429, new Headers(), '').status).toBe(429)
+  })
+
+  it('includes stderr in the error message when exit code is non-zero', async () => {
+    const client = new ClaudeCliClient(async () => ({
+      stdout: '',
+      stderr: 'Not logged in · Please run /login',
+      exitCode: 1,
+    }))
+    await expect(
+      client.fetch(claudeTransport.endpoint(ctx), {
+        method: 'POST',
+        headers: {},
+        body: JSON.stringify({ model: 'sonnet', prompt: 'USER:\nHello' }),
+      }),
+    ).rejects.toMatchObject({ message: expect.stringContaining('Not logged in') })
   })
 })
 

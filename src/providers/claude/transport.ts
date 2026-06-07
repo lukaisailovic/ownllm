@@ -3,6 +3,7 @@ import {
   type UpstreamRequestInit,
   classifyUpstreamStatus,
 } from '../../http/upstream-client'
+import { logger } from '../../logger'
 import { upstreamError } from '../../translate/errors'
 import { asRecord, getString } from '../../util/json'
 import type { Transport } from '../types'
@@ -10,6 +11,8 @@ import { type CommandRunner, runCommand } from './auth'
 
 const CLAUDE_HOST = 'claude.local'
 const ENDPOINT = `https://${CLAUDE_HOST}/v1/messages`
+const CHAT_SYSTEM_PROMPT =
+  'You are Claude, a chat completion assistant. Answer directly from the conversation. Do not use Claude Code tools, commands, MCP servers, browser integrations, or external integrations.'
 
 export class ClaudeCliClient implements UpstreamClient {
   constructor(private readonly runner: CommandRunner = runCommand) {}
@@ -23,13 +26,34 @@ export class ClaudeCliClient implements UpstreamClient {
     const model = getString(body, 'model')
     if (!prompt || !model) throw upstreamError('Claude provider received an invalid request body')
 
-    const args = ['-p', '--output-format', 'json', '--max-turns', '1', '--model', model]
+    const args = [
+      '-p',
+      '--output-format',
+      'json',
+      '--max-turns',
+      '2',
+      '--model',
+      model,
+      '--system-prompt',
+      CHAT_SYSTEM_PROMPT,
+    ]
+    logger.debug({ command: 'claude', args }, 'claude cli invoke')
     const result = await this.runner('claude', args, init.signal, prompt).catch((error) => {
+      logger.error({ command: 'claude', args, err: errorMessage(error) }, 'claude cli spawn failed')
       throw upstreamError(`Claude Code CLI request failed: ${errorMessage(error)}`)
     })
     if (result.exitCode !== 0) {
-      throw upstreamError(`Claude Code CLI exited with status ${result.exitCode ?? 'unknown'}`)
+      const detail = result.stderr.trim() || result.stdout.trim()
+      logger.error(
+        { command: 'claude', args, exitCode: result.exitCode, stderr: detail.slice(0, 500) },
+        'claude cli exited non-zero',
+      )
+      const suffix = detail ? `: ${detail}` : ''
+      throw upstreamError(
+        `Claude Code CLI exited with status ${result.exitCode ?? 'unknown'}${suffix}`,
+      )
     }
+    logger.debug({ command: 'claude', args, exitCode: result.exitCode }, 'claude cli succeeded')
 
     return new Response(sseText(claudeOutputText(result.stdout)), {
       status: 200,
