@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { AuthError } from '../../src/auth/errors'
 import { parseSSE } from '../../src/http/sse'
+import { ClaudeAuthProvider } from '../../src/providers/claude/auth'
 import {
-  ClaudeAuthProvider,
   type CommandRunner,
   MAX_COMMAND_OUTPUT_BYTES,
   runCommand,
-} from '../../src/providers/claude/auth'
+} from '../../src/providers/claude/cli'
 import { CLAUDE_MODELS } from '../../src/providers/claude/models'
 import { claudeModule } from '../../src/providers/claude/module'
 import { buildClaudePrompt, claudeTranslator } from '../../src/providers/claude/translator'
@@ -108,6 +108,12 @@ describe('claude auth', () => {
     expect(result.exitCode).toBe(0)
     expect(Buffer.byteLength(result.stdout, 'utf8')).toBe(MAX_COMMAND_OUTPUT_BYTES)
     expect(Buffer.byteLength(result.stderr, 'utf8')).toBe(MAX_COMMAND_OUTPUT_BYTES)
+  })
+
+  it('does not crash when stdin gets EPIPE after the child exits early', async () => {
+    await expect(
+      runCommand(process.execPath, ['-e', 'process.exit(0)'], undefined, 'x'.repeat(1024 * 1024)),
+    ).resolves.toMatchObject({ exitCode: 0 })
   })
 })
 

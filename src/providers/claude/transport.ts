@@ -5,9 +5,10 @@ import {
 } from '../../http/upstream-client'
 import { logger } from '../../logger'
 import { upstreamError } from '../../translate/errors'
-import { asRecord, getString } from '../../util/json'
+import { errorMessage } from '../../util/errors'
+import { asRecord, getString, parseJson } from '../../util/json'
 import type { Transport } from '../types'
-import { type CommandRunner, runCommand } from './auth'
+import { type CommandRunner, runCommand } from './cli'
 
 const CLAUDE_HOST = 'claude.local'
 const ENDPOINT = `https://${CLAUDE_HOST}/v1/messages`
@@ -18,8 +19,9 @@ export class ClaudeCliClient implements UpstreamClient {
   constructor(private readonly runner: CommandRunner = runCommand) {}
 
   async fetch(url: string, init: UpstreamRequestInit): Promise<Response> {
-    if (new URL(url).hostname !== CLAUDE_HOST) {
-      throw upstreamError(`refusing request to non-allowlisted host: ${new URL(url).hostname}`)
+    const { hostname } = new URL(url)
+    if (hostname !== CLAUDE_HOST) {
+      throw upstreamError(`refusing request to non-allowlisted host: ${hostname}`)
     }
     const body = asRecord(parseJson(init.body ?? '{}'))
     const prompt = getString(body, 'prompt')
@@ -121,16 +123,4 @@ function sseText(text: string): string {
 
 function event(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`
-}
-
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return undefined
-  }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

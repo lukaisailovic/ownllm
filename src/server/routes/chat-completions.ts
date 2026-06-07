@@ -24,6 +24,7 @@ import {
   ChatCompletionRequestSchema,
   type TranslateContext,
 } from '../../translate/types'
+import { errorMessage } from '../../util/errors'
 import type { AppDeps } from '../app'
 import type { AppEnv } from '../types'
 
@@ -245,8 +246,4 @@ function finishChunk(ctx: TranslateContext): ChatCompletionChunk {
     model: ctx.requestedModel,
     choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

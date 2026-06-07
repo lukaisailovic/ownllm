@@ -4,6 +4,14 @@ export function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined
 }
 
+export function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
+  }
+}
+
 export function getString(value: unknown, key: string): string | undefined {
   const field = asRecord(value)?.[key]
   return typeof field === 'string' ? field : undefined
