@@ -28,9 +28,9 @@ models:
     reasoning_effort: medium
 ```
 
-The provider ids you can enable are `openai-codex`, `xai`, `copilot`, `qwen`, `minimax`, and
-`gemini` — each a subscription OAuth login (see [auth](./auth.md)). `config.example.yaml` shows a
-route for every one.
+The provider ids you can enable are `openai-codex`, `xai`, `copilot`, `qwen`, `minimax`, `gemini`,
+and `claude` — each a subscription OAuth or local CLI login (see [auth](./auth.md)).
+`config.example.yaml` shows a route for every one.
 
 ## The models table
 

@@ -10,6 +10,7 @@ backend you've logged into over OAuth:
 - **Qwen** (`qwen`, your qwen.ai login)
 - **MiniMax** (`minimax`)
 - **Google Gemini** (`gemini`, via Cloud Code Assist)
+- **Claude Code** (`claude`, via local Claude CLI auth)
 
 Each backend speaks a different API under the hood; ownllm does the translating, so your existing
 OpenAI tooling keeps working — streaming, tool calls, and token usage all pass straight through.
@@ -82,7 +83,7 @@ providers:
     enabled: true
   xai:
     enabled: true
-  # also available, once you log in: copilot, qwen, minimax, gemini
+  # also available, once you log in: copilot, qwen, minimax, gemini, claude
 models:                       # the routing table: requested model -> upstream provider + model
   gpt-5:
     provider: openai-codex
@@ -118,7 +119,7 @@ ownllm serve --host 0.0.0.0
 ```
 ownllm config init                       write a starter config
 ownllm serve [--config p] [--host h] [--port n]
-ownllm auth login <provider>             OAuth login, store the credential (openai-codex, xai, copilot, qwen, minimax, gemini)
+ownllm auth login <provider>             OAuth/local login, store the credential (openai-codex, xai, copilot, qwen, minimax, gemini, claude)
 ownllm auth status                       validity, identity, expiry (tokens redacted)
 ownllm auth logout <provider>
 ownllm auth import openai-codex          reuse the official Codex CLI login (~/.codex); see the warning it prints

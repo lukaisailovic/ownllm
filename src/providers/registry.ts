@@ -1,3 +1,4 @@
+import { claudeModule } from './claude/module'
 import { codexModule } from './codex/module'
 import { copilotModule } from './copilot/module'
 import { geminiModule } from './gemini/module'
@@ -23,6 +24,7 @@ export function listProviderModules(): ProviderModule[] {
   return [...new Set(modules.values())]
 }
 
+registerProvider(claudeModule)
 registerProvider(codexModule)
 registerProvider(copilotModule)
 registerProvider(geminiModule)
