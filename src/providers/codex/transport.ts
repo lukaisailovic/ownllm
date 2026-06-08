@@ -31,7 +31,13 @@ export const codexTransport: Transport = {
   },
 
   sanitizeBody(body) {
-    return { ...(body as Record<string, unknown>), store: false }
+    const { max_output_tokens: _maxOutputTokens, ...next } = body as Record<string, unknown>
+    next.store = false
+    if (!next.instructions) {
+      next.instructions =
+        'You are Codex, a chat completion assistant. Answer directly from the conversation.'
+    }
+    return next
   },
 
   client: () => client,

@@ -49,9 +49,23 @@ describe('codex provider', () => {
     expect(rateLimit.headers['retry-after']).toBe('5')
   })
 
-  it('adds store:false in sanitizeBody', () => {
-    expect(codexTransport.sanitizeBody?.({ input: [] }, ctx(), credential)).toEqual({
+  it('adds store:false, drops max_output_tokens, and adds default instructions in sanitizeBody', () => {
+    expect(
+      codexTransport.sanitizeBody?.({ input: [], max_output_tokens: 10 }, ctx(), credential),
+    ).toEqual({
       input: [],
+      store: false,
+      instructions:
+        'You are Codex, a chat completion assistant. Answer directly from the conversation.',
+    })
+  })
+
+  it('preserves explicit instructions in sanitizeBody', () => {
+    expect(
+      codexTransport.sanitizeBody?.({ input: [], instructions: 'custom' }, ctx(), credential),
+    ).toEqual({
+      input: [],
+      instructions: 'custom',
       store: false,
     })
   })
