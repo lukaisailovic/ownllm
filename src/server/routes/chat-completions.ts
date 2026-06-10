@@ -81,7 +81,7 @@ async function handleChatCompletion(
   // timeout aborts the shared signal and ends the loop without penalizing a model's health.
   let served: ServedUpstream | undefined
   let lastError: OwnllmError | undefined
-  for (const candidate of candidates) {
+  for (const [index, candidate] of candidates.entries()) {
     if (controller.signal.aborted) break
     try {
       const result = await attemptCandidate(
@@ -103,9 +103,16 @@ async function handleChatCompletion(
       lastError = error
       if (controller.signal.aborted) break
       breaker.recordFailure(candidate.model)
+      const fallback = candidates[index + 1]
       logger.warn(
-        { requestId, model: candidate.model, status: error.status, code: error.code },
-        'candidate failed; trying next',
+        {
+          requestId,
+          model: candidate.model,
+          status: error.status,
+          code: error.code,
+          fallback: fallback?.model,
+        },
+        fallback ? 'candidate failed; falling back' : 'candidate failed; no fallback left',
       )
     }
   }
