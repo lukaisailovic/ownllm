@@ -40,50 +40,76 @@ function client(baseURL: string): OpenAI {
   return new OpenAI({ apiKey: 'test-key', baseURL, maxRetries: 0, fetch: globalThis.fetch })
 }
 
-describe('chat completions via the OpenAI SDK', () => {
-  it('returns a non-stream completion with usage', async () => {
+describe('responses via the OpenAI SDK', () => {
+  it('returns a non-stream response with usage', async () => {
     const server = await startServer(TEXT_SSE)
     close = server.close
-    const completion = await client(server.baseURL).chat.completions.create({
+    const response = await client(server.baseURL).responses.create({
       model: 'gpt-5',
-      messages: [{ role: 'user', content: 'hi' }],
+      input: 'hi',
     })
-    expect(completion.choices[0]?.message.content).toBe('Hello world')
-    expect(completion.usage?.prompt_tokens).toBe(5)
+    expect(response.output_text).toBe('Hello world')
+    expect(response.usage?.input_tokens).toBe(5)
+    expect(response.status).toBe('completed')
   })
 
-  it('streams chunks the SDK can consume', async () => {
+  it('streams typed events the SDK can consume', async () => {
     const server = await startServer(TEXT_SSE)
     close = server.close
-    const stream = await client(server.baseURL).chat.completions.create({
+    const stream = await client(server.baseURL).responses.create({
       model: 'gpt-5',
+      input: 'hi',
       stream: true,
-      messages: [{ role: 'user', content: 'hi' }],
     })
-    let content = ''
-    for await (const chunk of stream) content += chunk.choices[0]?.delta?.content ?? ''
-    expect(content).toBe('Hello world')
+    let text = ''
+    let completed = false
+    for await (const event of stream) {
+      if (event.type === 'response.output_text.delta') text += event.delta
+      if (event.type === 'response.completed') completed = true
+    }
+    expect(text).toBe('Hello world')
+    expect(completed).toBe(true)
   })
 
-  it('surfaces parallel tool calls', async () => {
+  it('surfaces parallel function calls in output', async () => {
     const server = await startServer(sseText(INTERLEAVED_EVENTS))
     close = server.close
-    const completion = await client(server.baseURL).chat.completions.create({
+    const response = await client(server.baseURL).responses.create({
       model: 'gpt-5',
-      messages: [{ role: 'user', content: 'weather and time?' }],
+      input: 'weather and time?',
     })
-    const toolCalls = completion.choices[0]?.message.tool_calls ?? []
-    expect(toolCalls.map((call) => call.function.name)).toEqual(['get_weather', 'get_time'])
+    const calls = response.output.filter((item) => item.type === 'function_call')
+    expect(calls.map((call) => call.name)).toEqual(['get_weather', 'get_time'])
+  })
+
+  it('accepts structured input items and instructions', async () => {
+    const server = await startServer(TEXT_SSE)
+    close = server.close
+    const response = await client(server.baseURL).responses.create({
+      model: 'gpt-5',
+      instructions: 'be terse',
+      input: [{ role: 'user', content: [{ type: 'input_text', text: 'hi' }] }],
+    })
+    expect(response.output_text).toBe('Hello world')
   })
 
   it('returns 404 for an unknown model', async () => {
     const server = await startServer(TEXT_SSE)
     close = server.close
     await expect(
-      client(server.baseURL).chat.completions.create({
-        model: 'nope',
-        messages: [{ role: 'user', content: 'hi' }],
-      }),
+      client(server.baseURL).responses.create({ model: 'nope', input: 'hi' }),
     ).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('rejects stateful previous_response_id (stateless gateway)', async () => {
+    const server = await startServer(TEXT_SSE)
+    close = server.close
+    await expect(
+      client(server.baseURL).responses.create({
+        model: 'gpt-5',
+        input: 'hi',
+        previous_response_id: 'resp_123',
+      }),
+    ).rejects.toMatchObject({ status: 400 })
   })
 })

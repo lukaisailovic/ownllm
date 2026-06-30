@@ -24,10 +24,10 @@ pnpm test` (and `pnpm build` if you touched build/runtime wiring). Match what CI
 ```
 src/cli/         citty commands (serve, auth, config, models, doctor)
 src/config/      zod schema, ${ENV} loader, paths, loopback check
-src/server/      Hono app, middleware, routes, readiness
+src/server/      Hono app, middleware, readiness; routes/ (chat-completions, responses) over a shared serve-upstream engine
 src/router/      resolveModel/resolveChain(name) -> ordered route candidates; fallback breaker
 src/providers/   types (extension contract), registry, codex/, xai/, copilot/, qwen/, minimax/, gemini/
-src/translate/   CC types + error factory + param policy; shared wire.ts; responses/ chat/ anthropic/ gemini/ translators
+src/translate/   CC types + error factory + param policy; shared wire.ts; responses/ (+ inbound from-client/to-client) chat/ anthropic/ gemini/ translators
 src/auth/        Credential, AuthStore (0600+lock), single-flight RefreshManager, OAuth primitives
 src/http/        host-pinned UpstreamClient, Codex cookie jar, SSE parser
 tests/support/   shared test helpers (createTestApp, fakeModule, sseResponse, responses fixtures)

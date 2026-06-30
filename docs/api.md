@@ -30,6 +30,7 @@ print(
 | Method | Path | What it does |
 |---|---|---|
 | `POST` | `/v1/chat/completions` | Chat Completions, streaming or not. |
+| `POST` | `/v1/responses` | Responses API, streaming or not. |
 | `GET` | `/v1/models` | Lists the model names you've configured. |
 | `GET` | `/health` | Liveness: `200 {"status":"ok"}` while the server is up. |
 | `GET` | `/ready` | `200` once config is valid and at least one provider has a credential, else `503`. |
@@ -65,6 +66,36 @@ rather hear that a parameter isn't taking effect than have it silently ignored.
 ```
 
 `id` is your configured name; `owned_by` is the provider behind it.
+
+## Responses
+
+ownllm also speaks the [Responses API](https://platform.openai.com/docs/api-reference/responses) on
+`POST /v1/responses`, against the same models, providers, auth, and fallbacks. Point the OpenAI SDK's
+`responses` resource at it:
+
+```python
+client = OpenAI(base_url="http://127.0.0.1:8787/v1", api_key="local")
+print(client.responses.create(model="gpt-5", input="hi").output_text)
+```
+
+It accepts the common, **stateless** subset of the request: `input` (a string, or an array of
+`message` / `function_call` / `function_call_output` items), `instructions`, function `tools`,
+`tool_choice`, `max_output_tokens`, `temperature`, `top_p`, `reasoning.effort`, `text.format`,
+`parallel_tool_calls`, and `stream`. Set `stream: true` for the typed event stream
+(`response.created`, `response.output_text.delta`, `response.function_call_arguments.delta`,
+`response.completed`, …); there is no `[DONE]` sentinel — the stream ends on `response.completed`,
+which always carries `usage`.
+
+Because ownllm stores no conversations, the server-state features are not supported:
+
+- `previous_response_id` and `background` are rejected with a 400 `unsupported_parameter`. Resend the
+  full `input` each turn instead.
+- `store`, `metadata`, and `include` are accepted and ignored.
+- Hosted tools (`web_search`, `file_search`, `computer_use`, …) are dropped; function tools work.
+
+Under the hood every request is translated to the same internal currency as chat completions, so it
+routes to any configured provider — Codex, Grok, Copilot, Qwen, MiniMax, or Gemini — not just the
+ones that speak Responses upstream.
 
 ## Errors
 
