@@ -34,7 +34,10 @@ let close: (() => void) | undefined
 afterEach(() => close?.())
 
 function client(baseURL: string): OpenAI {
-  return new OpenAI({ apiKey: 'test-key', baseURL, maxRetries: 0 })
+  // Use the platform-native fetch (undici). The SDK's bundled node-fetch@2 raises a false-positive
+  // "Premature close" on a well-formed chunked SSE stream under Node >=22.23; undici (what real
+  // Node 18+ clients use) does not.
+  return new OpenAI({ apiKey: 'test-key', baseURL, maxRetries: 0, fetch: globalThis.fetch })
 }
 
 describe('responses via the OpenAI SDK', () => {
