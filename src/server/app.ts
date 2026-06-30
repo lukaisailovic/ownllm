@@ -11,6 +11,7 @@ import { requestId } from './middleware/requestId'
 import { registerChatRoutes } from './routes/chat-completions'
 import { registerHealthRoutes } from './routes/health'
 import { registerModelsRoutes } from './routes/models'
+import { registerResponsesRoutes } from './routes/responses'
 import type { AppEnv } from './types'
 
 export interface AppDeps {
@@ -54,6 +55,7 @@ export function createApp(deps: AppDeps): Hono<AppEnv> {
   app.use('/v1/*', clientAuth(deps.config.server.api_key))
   registerModelsRoutes(app, deps.config, deps.startedAt)
   registerChatRoutes(app, deps, breaker)
+  registerResponsesRoutes(app, deps, breaker)
 
   return app
 }

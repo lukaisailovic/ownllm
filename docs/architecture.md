@@ -51,6 +51,16 @@ the shared Responses translator with a Codex-specific transport.
 Any thrown `OwnllmError` is rendered by the app's `onError` into the OpenAI error envelope with the
 request id (`translate/errors.ts`).
 
+## A second inbound format: `POST /v1/responses`
+
+The [Responses API](./api.md#responses) reuses this flow end to end. Steps 5–9 are shared:
+`server/routes/serve-upstream.ts` runs the resolve + fallback + abort engine and hands back the
+chosen upstream's event stream, and both the chat and responses routes call it. Only the edges
+differ — the body is parsed from the Responses shape into CC, and the winner is rendered back as a
+Responses object or typed event stream (`translate/responses/from-client.ts` + `to-client.ts`).
+Because everything between the edges is CC, a Responses request reaches *every* provider, not just
+the ones that speak Responses upstream.
+
 ## Why "always stream upstream"
 
 Codex requires `stream:true`. So ownllm always streams from the upstream and decides at the edge

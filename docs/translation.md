@@ -65,3 +65,28 @@ injected post-200, and there is no retry.
 SHA-256 and formats it UUID-shaped (Codex's `session-id` may validate the form). The same prefix
 across turns yields the same id, so the upstream prompt cache hits. Collisions are harmless under
 single-tenant use.
+
+## Inbound: serving the Responses API to clients
+
+The files above translate **CC → a provider** (the upstream is Responses). The `/v1/responses`
+endpoint needs the opposite direction — **a client's Responses request → CC**, and **CC → Responses**
+on the way back — so the request can route to *any* provider, not just the ones that speak Responses
+upstream. That inverse codec lives in the same directory:
+
+| File | Role |
+|---|---|
+| `from-client.ts` | Responses request → CC (`responsesRequestToCompletion`) — inverse of `request.ts` |
+| `to-client.ts` | CC completion → a `response` object, and CC chunks → the typed event stream |
+
+`from-client.ts` regroups an assistant `message` item plus its trailing `function_call` items back
+into one CC assistant message (the exact inverse of `request.ts`), forces
+`stream_options.include_usage` (the Responses API always reports usage), and rejects the stateless
+escape hatches (`previous_response_id`, `background`) with a 400. `to-client.ts` drives a small state
+machine that brackets each output item with `output_item.added`/`.done` and emits a terminal
+`response.completed` — even on a mid-stream upstream failure, mirroring the chat path's "close
+cleanly, no error object after the first byte" rule. There is no `[DONE]` sentinel; the stream ends
+on `response.completed`.
+
+A request therefore crosses two translations (client Responses → CC → provider wire, then back),
+both reusing the same [serve-upstream engine](./architecture.md) as chat completions; only the edges
+differ.

@@ -63,6 +63,14 @@ print(reply.choices[0].message.content)
 point them wherever you want, and run `ownllm models` to see the table. Add `--remote` to fetch the
 live upstream names (Grok Build's churn often, so it's worth checking).
 
+The newer [Responses API](https://platform.openai.com/docs/api-reference/responses) works too, on
+the same models — so the same routing table serves both endpoints:
+
+```python
+client = OpenAI(base_url="http://127.0.0.1:8787/v1", api_key="local")
+print(client.responses.create(model="gpt-5", input="hi").output_text)
+```
+
 ## Configuration
 
 The config lives at `~/.ownllm/config.yaml`. Override the directory with `OWNLLM_HOME`, or pass
